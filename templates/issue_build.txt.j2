@@ -1,0 +1,24 @@
+
+{% extends "base.txt" %}
+{% block header %}{% endblock %}
+{% block content %}
+Hello,
+
+New build issue found on {{ tree }}:
+
+{{ issue["comment"]}}
+
+- Dashboard: https://staging.dashboard.kernelci.org:9000/issue/{{ issue["id"] }}/version/{{ issue["version"] }}
+- Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{issue["id"]}}
+
+{% if "misc" in issue.keys() and "logspec" in issue["misc"].keys() %}
+Log excerpt:
+{{ issue["misc"]["logspec"]["error"]["log_excerpt"] }}
+{% endif %}
+
+# Builds where the incident occurred:
+{% for build in builds %}
+## {{ build["config_name"] }}({{ build["compiler"] }}):
+- Dashboard: https://staging.dashboard.kernelci.org:9000/build/{{build["id"]}}
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,4 @@
+* add args for emails "to" and "cc"
+* storage for recent new issues
+* merge stable-rc code in
+* save info about which regressions notifications were sent already

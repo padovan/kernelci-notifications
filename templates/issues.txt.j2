@@ -1,0 +1,37 @@
+
+{% extends "base.txt" %}
+{% block header %}{% endblock %}
+{% block content %}
+Build regressions:
+-------------
+{% if build_issues %}
+    {% for id, issue in build_issues.items() %}
+- ID: {{ id }}
+- Comment: {{ issue["comment"] }}
+- Timestamp: {{ issue["timestamp"] }}
+- Trees: {{ issue["trees"] | join(', ') }}
+- Incidents Count: {{ issue["incidents_info"]["incidentsCount"] }}
+- Dashboard: https://staging.dashboard.kernelci.org:9000/issue/{{ id }}/version/{{ issue["version"] }}
+- Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{id}} 
+---
+    {% endfor %}
+{% else %}
+  No new build regressions found.
+{% endif %}
+Boot regressions:
+------------
+{%- if boot_issues %}
+{% for id, issue in boot_issues.items() %}
+- ID: {{ id }}
+- Comment: {{ issue["comment"] }}
+- Timestamp: {{ issue["timestamp"] }}
+- Trees: {{ issue["trees"] | join(', ') }}
+- Incidents Count: {{ issue["incidents_info"]["incidentsCount"] }}
+- Dashboard: https://staging.dashboard.kernelci.org:9000/issue/{{ id }}/version/{{ issue["version"] }}
+- Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{id}}
+---
+    {% endfor %}
+{% else %}
+  No new boot regressions found.
+{% endif %}
+{%- endblock %}

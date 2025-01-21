@@ -1,0 +1,311 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import argparse
+import jinja2
+import json
+import os
+import base64
+
+from datetime import datetime, timezone, timedelta
+from email.message import EmailMessage
+
+from libs.dashboard_api import *
+from libs.gmail_api import *
+
+
+def from_last_24_hours(timestamp: str) -> bool:
+    time = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+    current_time = datetime.now(tz=timezone.utc)
+    time_24_hours_ago = current_time - timedelta(hours=24)
+
+    return time > time_24_hours_ago
+
+
+def exclude_issues_already_found(new_issues, storage_file="storage.json"):
+    """
+    Compare new data with the saved data, merge both JSONs while
+    excluding items older than 24 hours,
+    and save the merged data into the storage file.
+
+    Args:
+        new_issues (dict): The new JSON data to compare and join.
+        storage_file (str): The file path to the saved JSON data.
+
+    Returns:
+        dict: The new items added and the merged data.
+    """
+    # Load saved data from the file, if it exists, otherwise initialize an empty dict
+    try:
+        with open(storage_file, "r", encoding="utf-8") as f:
+            saved_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        saved_data = {}
+
+    # Find new items that aren't in saved_data
+    new_items = {k: v for k, v in new_issues.items() if k not in saved_data}
+
+    # Merge both datasets, filtering out items older than 24 hours
+    merged_data = {}
+
+    # Add items from saved data if they are not older than 24 hours
+    for key, item in saved_data.items():
+        if "timestamp" in item and from_last_24_hours(item["timestamp"]):
+            merged_data[key] = item
+
+    # Add items from new data if they are not older than 24 hours
+    for key, item in new_issues.items():
+        if "timestamp" in item and from_last_24_hours(item["timestamp"]):
+            merged_data[key] = item
+
+    try:
+        with open(storage_file, "w", encoding="utf-8") as f:
+            json.dump(merged_data, f, indent=4)
+        print(f"Data successfully saved to {storage_file}")
+    except Exception as e:
+        print(f"Error saving data: {e}")
+
+    return new_items
+
+
+def find_new_issues(older_issues, current_issues):
+    new_issues = []
+    for issue in current_issues:
+        if not any(entry["id"] == issue["id"] for entry in older_issues):
+            new_issues.append(issue)
+
+    return new_issues
+
+
+def get_specific_tree_issues(origin, trees, tree_url, type):
+    for tree in trees:
+        if tree["git_repository_url"] == tree_url:
+            giturl = tree['git_repository_url']
+            branch = tree['git_repository_branch']
+            commit_hash = tree["git_commit_hash"]
+            commit_history = fetch_commits(origin, giturl, branch, commit_hash)
+            issues = []
+            for commit in commit_history:
+                data = fetch_summary(origin, giturl, branch, commit["git_commit_hash"], commit["earliest_start_time"])
+                for issue in data["summary"][type]["issues"]:
+                    if not any(entry["id"] == issue["id"] for entry in issues):
+                        issues.append(issue)
+
+            return issues
+
+
+def get_mainline_issues_by_type(origin, trees, type):
+    return get_specific_tree_issues(origin, trees, "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git", type)
+
+
+def get_next_issues_by_type(origin, trees, type):
+    return get_specific_tree_issues(origin, trees, "https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git", type)
+
+
+def get_new_issues_for_tree(origin, tree, type):
+    giturl = tree['git_repository_url']
+    branch = tree['git_repository_branch']
+    commit_hash = tree["git_commit_hash"]
+    commit_history = fetch_commits(origin, giturl, branch, commit_hash)
+    current_issues = []
+    for commit in commit_history:
+        data = fetch_summary(origin, giturl, branch, commit["git_commit_hash"], commit["earliest_start_time"])
+        if from_last_24_hours(commit["earliest_start_time"]) and commit != commit_history[-1]:
+            for issue in data["summary"][type]["issues"]:
+                if not any(entry["id"] == issue["id"] for entry in current_issues):
+                    current_issues.append(issue)
+        else:
+            older_issues = data["summary"][type]["issues"]
+            break
+
+    return find_new_issues(older_issues, current_issues)
+
+
+def collect_all_new_issues(origin, trees, type):
+    new_issues_all = {}
+    for tree in trees:
+        tree_name = tree['tree_name']
+        branch = tree['git_repository_branch']
+
+        new_issues = get_new_issues_for_tree(origin, tree, type)
+
+        mainline_issues = get_mainline_issues_by_type(origin, trees, type)
+
+        if not new_issues:
+            continue
+
+        for issue in new_issues:
+            if any(entry["id"] == issue["id"] for entry in mainline_issues):
+                print(f"INFO: {issue["id"]} issue already in mainline.")
+                continue
+            tree_branch  = f"{tree_name}/{branch}"
+            if issue["id"] in new_issues_all.keys():
+                new_issues_all[issue["id"]]["trees"].append(tree_branch)
+            else:
+                issue["trees"] = [tree_branch]
+                issue["timestamp"] = tree["start_time"]
+                new_issues_all[issue["id"]] = issue
+
+    for id, issue in new_issues_all.items():
+        print(f"  - [{type}]: {issue['comment']}")
+        print(f"    Date: {issue["timestamp"]}")
+        print(f"    Trees: {", ".join(map(str, issue["trees"]))}")
+        print(f"    https://dashboard.kernelci.org/issue/{id}/version/{issue["version"]}")
+        print(f"    https://grafana.kernelci.org/d/issue/issue?var-id={id}")
+        print("")
+
+    return new_issues_all
+
+
+def setup_jinja_template(file):
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader(os.path.join(sys.path[0], 'templates')))
+    return env.get_template(file)
+
+
+def generate_issues_report(build_issues, boot_issues):
+    template = setup_jinja_template('issues.txt.j2')
+    report= {}
+    now = datetime.now(timezone.utc)
+    report["content"] = template.render(build_issues=build_issues, boot_issues=boot_issues)
+    report["title"] = f"new issues summary - {now.strftime("%Y-%m-%d %H:%M %Z")}"
+    report["empty"] = not build_issues and not boot_issues
+    return report
+
+
+def generate_build_issue_report(issue, builds, tree_branch, comment):
+    template = setup_jinja_template('issue_build.txt.j2')
+    report= {}
+    report["content"] = template.render(issue=issue, builds=builds, tree=tree_branch)
+    snippet = comment if len(comment) <= 60 else comment[:57]+ "..."
+    report["title"] = f"{tree_branch}: new build regression: {snippet}"
+    report["empty"] = False
+    return report
+
+
+def generate_boot_issue_report(issue, boots, tree_branch, comment):
+    template = setup_jinja_template('issue_boot.txt.j2')
+    report= {}
+    report["content"] = template.render(issue=issue, boots=boots, tree=tree_branch)
+    snippet = comment if len(comment) <= 60 else comment[:57]+ "..."
+    report["title"] = f"{tree_branch}: new boot regression: {snippet}"
+    report["empty"] = False
+    return report
+
+
+def issues_summary(origin):
+    trees = fetch_tree_fast(origin)
+    new_build_issues = collect_all_new_issues(origin, trees, "builds")
+    new_build_issues = exclude_issues_already_found(new_build_issues, "builds.json")
+    new_boot_issues = collect_all_new_issues(origin, trees, "boots")
+    new_boot_issues = exclude_issues_already_found(new_boot_issues, "boots.json")
+    report = generate_issues_report(new_build_issues, new_boot_issues)
+    return report
+
+
+def build_issue_report(origin, issue_id, tree_branch):
+    # XXX version hardcoded until the dashboard enable automatic fetching of latest version
+    version = 1
+    issue = fetch_issue(issue_id, version)
+    issue_builds = fetch_issue_builds(issue_id, version)
+    if isinstance(issue_builds, dict) and "error" in issue_builds.keys():
+        print(issue_builds["error"])
+        sys.exit()
+    builds = []
+    for t in issue_builds:
+        builds.append(fetch_build(t["id"]))
+
+    report = generate_build_issue_report(issue, builds, tree_branch, issue["comment"])
+    return report
+
+
+def boot_issue_report(origin, issue_id, tree_branch):
+    # XXX version hardcoded until the dashboard enable automatic fetching of latest version
+    version = 1
+    issue = fetch_issue(issue_id, version)
+    issue_boots = fetch_issue_tests(issue_id, version)
+    if isinstance(issue_boots, dict) and "error" in issue_boots.keys():
+        print(issue_boots["error"])
+        sys.exit()
+
+    boots = []
+    for t in issue_boots:
+        if t["path"] == "boot":
+            boots.append(fetch_test(t["id"]))
+
+    report = generate_boot_issue_report(issue, boots, tree_branch, issue["comment"])
+    return report
+
+
+def create_email(sender, to, subject, message_text, cc):
+    message = EmailMessage()
+    message.set_content(message_text)
+    # Set email headers
+    if to:
+        message['to'] = to
+    else:
+        message['to'] = "gustavo.padovan@collabora.com"
+        #message['to'] = "kernelci-results@groups.io"
+    if cc:
+        message['cc'] = cc
+    message['from'] = sender
+    message['subject'] = subject
+
+    # Encode the message as base64
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    return {'raw': raw}
+
+
+def send_email_report(service, report, to, cc=None):
+
+    sender_email = "KernelCI bot <bot@kernelci.org>"
+    subject = report["title"]
+    message_text = report["content"]
+    print(f"sending {subject}.")
+
+    email = create_email(sender_email, to, subject, message_text, cc)
+    gmail_send_email(service, 'me', email)
+
+
+def main():
+    service = gmail_setup_service()
+    origin = "maestro"
+
+    parser = argparse.ArgumentParser(description="Run notifications script with subcommands.")
+    parser.add_argument("--send", action="store_true", help="Send email report at the end.")
+    parser.add_argument("--to", type=str, help="Recipient To: of the email")
+    parser.add_argument("--cc", type=str, help="Recipient CC: of the email")
+
+    subparsers = parser.add_subparsers(dest="command", required=True, help="Available subcommands")
+
+    issues_summary_parser = subparsers.add_parser("issues_summary", help="Run the issue_summary function")
+
+    issue_report_parser = subparsers.add_parser("issue_report", help="Run the issue_report function")
+    issue_report_parser.add_argument("--type", choices=["build", "boot"], required=True,
+        help="Specify 'build' or 'boot' report.")
+    issue_report_parser.add_argument("--id", type=str , required=True,
+        help="Id of the issue in the Dashboard/KCIDB")
+    issue_report_parser.add_argument("--branch", type=str , required=True,
+        help="HACK: pass branch name until we are able to figure it out ourselves")
+
+    args = parser.parse_args()
+
+    if args.command == "issues_summary":
+        report = issues_summary(origin)
+    elif args.command == "issue_report":
+        if args.type == "build":
+            report = build_issue_report(origin, args.id, args.branch)
+        elif args.type == "boot":
+            report = boot_issue_report(origin, args.id, args.branch)
+
+    if args.send:
+        if "empty" in report.keys() and report["empty"] == True:
+            return
+
+        send_email_report(service, report, args.to, args.cc)
+    else:
+        print("\n==============================================")
+        print(f"new report:\n> {report["title"]}")
+        print(report["content"])
+
+if __name__ == "__main__":
+    main()

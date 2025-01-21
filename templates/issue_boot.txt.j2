@@ -1,0 +1,33 @@
+
+{% extends "base.txt" %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+
+Hello,
+
+New boot regression found on {{ tree }}:
+
+{{ issue["comment"]}}
+
+- Dashboard: https://staging.dashboard.kernelci.org:9000/issue/{{ issue["id"] }}/version/{{ issue["version"] }}
+- Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{issue["id"]}}
+
+{% if "misc" in issue.keys() and "logspec" in issue["misc"].keys() %}
+Log excerpt:
+{{ issue["misc"]["logspec"]["error"]["log_excerpt"] }}
+{% endif %}
+
+# Hardware platforms affected:
+{% for boot in boots %}
+## {{boot["environment_misc"]["platform"]}}
+{% if boot["environment_compatible"] -%}
+- Compatibles:{{" "}}
+{%- for c in boot["environment_compatible"]-%}
+ {{ c }} {%- if not loop.last %} | {% endif -%}
+{%- endfor -%}
+{% endif %}
+- Dashboard: https://staging.dashboard.kernelci.org:9000/test/{{boot["id"]}}
+{% endfor %}
+{%- endblock -%}

@@ -1,0 +1,24 @@
+
+{% extends "base.txt" %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+
+giturl: {{ results.giturl }}
+branch: {{ results.branch }}
+commit hash: {{ results.commit_hash }}
+commit_name: {{ results.commit_name }}
+
+kernelci id: {{ results.id }}
+test start time: {{ results.start_time }}
+
+# summary
+
+{{'Builds:' }} {{ results.summary_builds.0 }} pass  {{ results.summary_builds.1 }} fail  {{ results.summary_builds.2 }} inconclusive
+{{'Boots:' }} {{ results.summary_boots.0 }} pass  {{ results.summary_boots.1 }} fail  {{ results.summary_boots.2 }} inconclusive
+{{'Tests:' }} {{ results.summary_tests.0 }} pass  {{ results.summary_tests.1 }} fail  {{ results.summary_tests.2 }} inconclusive
+
+Generated on {{ now }}.
+{% endblock %}
+
