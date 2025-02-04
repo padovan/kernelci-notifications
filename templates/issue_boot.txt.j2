@@ -11,7 +11,7 @@ New boot regression found on {{ tree }}:
 
 {{ issue["comment"]}}
 
-- Dashboard: https://staging.dashboard.kernelci.org:9000/issue/{{ issue["id"] }}/version/{{ issue["version"] }}
+- Dashboard: https://staging.dashboard.kernelci.org:9000/issue/{{ issue["id"] }}
 - Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{issue["id"]}}
 
 {% if "misc" in issue.keys() and "logspec" in issue["misc"].keys() %}
@@ -30,4 +30,9 @@ Log excerpt:
 {% endif %}
 - Dashboard: https://staging.dashboard.kernelci.org:9000/test/{{boot["id"]}}
 {% endfor %}
+
+#kernelci issue {{ issue["id"] }}
+
+Reported-by: kernelci.org bot <bot@kernelci.org>
+
 {%- endblock -%}
