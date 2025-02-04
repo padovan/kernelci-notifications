@@ -4,22 +4,28 @@
 {% block content %}
 Hello,
 
-New build issue found on {{ tree }}:
+New build issue found on {{ issue["tree_name"] }}/{{ issue["git_repository_branch"] }}:
 
+---
 {{ issue["comment"]}}
+---
 
-- Dashboard: https://staging.dashboard.kernelci.org:9000/issue/{{ issue["id"] }}
-- Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{issue["id"]}}
+- dashboard: https://dashboard.kernelci.org/issue/{{ issue["id"] }}
+- giturl: {{ issue["git_repository_url"]}}
+- commit HEAD:  {{ issue["git_commit_hash"] }}
 
 {% if "misc" in issue.keys() and "logspec" in issue["misc"].keys() %}
 Log excerpt:
+=====================================================
 {{ issue["misc"]["logspec"]["error"]["log_excerpt"] }}
+=====================================================
 {% endif %}
 
 # Builds where the incident occurred:
 {% for build in builds %}
-## {{ build["config_name"] }}({{ build["compiler"] }}):
-- Dashboard: https://staging.dashboard.kernelci.org:9000/build/{{build["id"]}}
+## {{ build["config_name"] }} on ({{ build["architecture"] }}):
+- compiler: {{ build["compiler"] }}
+- dashboard: https://dashboard.kernelci.org/build/{{build["id"]}}
 {% endfor %}
 
 #kernelci issue {{ issue["id"] }}

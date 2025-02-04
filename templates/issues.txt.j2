@@ -2,36 +2,36 @@
 {% extends "base.txt" %}
 {% block header %}{% endblock %}
 {% block content %}
+
+{% if build_issues %}
 Build regressions:
 -------------
-{% if build_issues %}
-    {% for id, issue in build_issues.items() %}
-- ID: {{ id }}
+{% for issue in build_issues %}
+#kernelci issue {{ issue["id"] }}
 - Comment: {{ issue["comment"] }}
-- Timestamp: {{ issue["timestamp"] }}
-- Trees: {{ issue["trees"] | join(', ') }}
-- Incidents Count: {{ issue["incidents_info"]["incidentsCount"] }}
-- Dashboard: https://staging.dashboard.kernelci.org:9000/issue/{{ id }}/version/{{ issue["version"] }}
-- Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{id}} 
+- Timestamp: {{ issue["_timestamp"] }}
+- Tree: {{ issue["tree_name"] }}/{{ issue["git_repository_branch"] }}
+- Commit HEAD: {{ issue["git_commit_hash"] }}
+- Incidents Count: {{issue["incident_count"]}}
+- Dashboard: https://dashboard.kernelci.org/issue/{{ issue["id"] }}
+- Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{ issue["id"] }}
 ---
-    {% endfor %}
-{% else %}
-  No new build regressions found.
+{% endfor %}
 {% endif %}
+
+{% if boot_issues %}
 Boot regressions:
-------------
-{%- if boot_issues %}
-{% for id, issue in boot_issues.items() %}
-- ID: {{ id }}
+-------------
+{% for issue in boot_issues %}
+#kernelci issue {{ issue["id"] }}
 - Comment: {{ issue["comment"] }}
-- Timestamp: {{ issue["timestamp"] }}
-- Trees: {{ issue["trees"] | join(', ') }}
-- Incidents Count: {{ issue["incidents_info"]["incidentsCount"] }}
-- Dashboard: https://staging.dashboard.kernelci.org:9000/issue/{{ id }}/version/{{ issue["version"] }}
-- Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{id}}
+- Timestamp: {{ issue["_timestamp"].strftime('%Y-%m-%d %H:%M %Z') }}
+- Tree: {{ issue["tree_name"] }}/{{ issue["git_repository_branch"]}}
+- Commit HEAD: {{ issue["git_commit_hash"] }}
+- Incidents Count: {{issue["incident_count"]}}
+- Dashboard: https://dashboard.kernelci.org/issue/{{ issue["id"] }}
+- Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{ issue["id"] }}
 ---
-    {% endfor %}
-{% else %}
-  No new boot regressions found.
+{% endfor %}
 {% endif %}
 {%- endblock %}
