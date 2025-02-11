@@ -15,6 +15,9 @@ from libs.gmail_api import *
 from libs.kcidb import *
 
 
+STORAGE_FILE = "found_issues.json"
+
+
 def setup_jinja_template(file):
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(os.path.join(sys.path[0], 'templates')))
     return env.get_template(file)
@@ -30,7 +33,6 @@ def exclude_already_found_and_store(issues):
     Returns:
         A list of dictionaries containing only the new issues (those not in the storage file).
     """
-    STORAGE_FILE = "found_issues.json"
     found_issues = {}
 
     # Load existing found issues from storage if the file exists
@@ -68,6 +70,37 @@ def exclude_already_found_and_store(issues):
         print(f"Error saving found issues to {STORAGE_FILE}: {e}")
 
     return new_issues
+
+
+def get_unsent_issues():
+    """Collects all issues where 'sent' is False and 'ignore' is False."""
+    with open(STORAGE_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    unsent_issues = {
+        issue_id: details
+        for issue_id, details in data.items()
+        if not details.get("sent", False) and not details.get("ignore", False)
+    }
+
+    return unsent_issues
+
+
+def mark_issues_as_sent(issues):
+    """Marks issues as sent in the storage file only if they are already marked as sent in the provided issues list."""
+    with open(STORAGE_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # Update only issues where 'sent' is True in the provided list
+    for issue_id, details in issues.items():
+        if issue_id in data and details.get("sent") is True:
+            data[issue_id]["sent"] = True
+            if details.get("message_id"):
+                data[issue_id]["message_id"] = details.get("message_id")
+
+    # Write back to the file
+    with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 
 def generate_issues_summary(conn, origin):
@@ -165,7 +198,7 @@ def ask_confirmation():
             print("Please enter 'y' or 'n'.")
 
 
-def send_email_report(service, report, to, cc=None, yes=False):
+def send_email_report(service, report, to, cc=None, yes=False, dry_run=False):
     sender_email = "KernelCI bot <bot@kernelci.org>"
     subject = report["title"]
     message_text = report["content"]
@@ -185,7 +218,21 @@ def send_email_report(service, report, to, cc=None, yes=False):
     print(f"sending {subject}.")
 
     email = create_email(sender_email, to, subject, message_text, cc)
-    gmail_send_email(service, 'me', email)
+    gmail_send_email(service, 'me', email, dry_run)
+
+
+def create_and_send_issue_reports(service, conn, to, cc, yes, dry_run):
+    unsent_issues = get_unsent_issues()
+    for issue_id, details in unsent_issues.items():
+        if details["type"] != "build":
+            continue
+        report = generate_issue_report(conn, issue_id)
+        print(report["title"])
+        msg_id = send_email_report(service, report, to, cc, yes, dry_run)
+        details["sent"] = True
+        details["message_id"] = msg_id
+
+    mark_issues_as_sent(unsent_issues)
 
 
 def main():
@@ -204,15 +251,23 @@ def main():
     issues_parser = subparsers.add_parser("issues", help="Run the issue_summary function")
 
     issue_report_parser = subparsers.add_parser("issue_report", help="Run the issue_report function")
-    issue_report_parser.add_argument("--id", type=str , required=True,
+    issue_report_parser.add_argument("--id", type=str,
         help="Id of the issue in the Dashboard/KCIDB")
+    issue_report_parser.add_argument("--send-all", action="store_true",
+        help="Automatically send issue reports for supported types")
+    issue_report_parser.add_argument("--dry-run", action="store_true",
+        help="Only pretend to send, but don't send in the end.")
 
     args = parser.parse_args()
 
     if args.command == "issues":
         report = generate_issues_summary(conn, origin)
     elif args.command == "issue_report":
-        report = generate_issue_report(conn, args.id)
+        if args.send_all:
+            create_and_send_issue_reports(service, conn, args.to, args.cc, args.yes, args.dry_run)
+            return
+        else:
+            report = generate_issue_report(conn, args.id)
 
     if not report:
         print("No new regressions.")

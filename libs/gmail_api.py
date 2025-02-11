@@ -39,11 +39,12 @@ def gmail_send_email(service, user_id, email, dry_run=False):
     """Send an email using the Gmail API."""
     if dry_run:
         print(email)
-        return
+        return "<dry run>"
 
     try:
         sent_message = service.users().messages().send(userId=user_id, body=email).execute()
         print(f"Message sent successfully! Message ID: {sent_message['id']}")
+        return sent_message['id']
     except Exception as error:
         print(f"An error occurred: {error}")
 
