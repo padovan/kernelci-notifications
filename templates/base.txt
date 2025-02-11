@@ -6,7 +6,7 @@
 {% block footer %}
 --
 This is an experimental report format. Please send feedback in!
-Talk to us at kerneci@lists.linux.dev
+Talk to us at kernelci@lists.linux.dev
 
 Made with love by the KernelCI team - https://kernelci.org
 {% endblock %}
