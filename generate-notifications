@@ -159,9 +159,6 @@ def generate_issue_report(conn, issue_id):
         incidents = kcidb_test_incidents(conn, issue_id)
         for incident in incidents:
             last_test = kcidb_last_test_without_issue(conn, issue, incident)
-            print(last_test[0]["_timestamp"])
-            print(last_test[0]["git_repository_url"])
-            print(last_test[0]["status"])
             incident["last_pass"] = last_test[0]["_timestamp"]
             incident["last_pass_commit"] = last_test[0]["git_commit_hash"]
             incident["last_pass_id"] = last_test[0]["id"]
@@ -227,7 +224,6 @@ def create_and_send_issue_reports(service, conn, to, cc, yes, dry_run):
         if details["type"] != "build":
             continue
         report = generate_issue_report(conn, issue_id)
-        print(report["title"])
         msg_id = send_email_report(service, report, to, cc, yes, dry_run)
         details["sent"] = True
         details["message_id"] = msg_id
