@@ -20,9 +20,9 @@ def setup_jinja_template(file):
     return env.get_template(file)
 
 
-def exclude_issues_already_found(issues):
+def exclude_already_found_and_store(issues):
     """
-    Excludes issues that have already been found and stored in the storage file.
+    Excludes issues that have already been found and store in the storage file.
 
     Args:
         issues: A list of dictionaries, where each dictionary represents an issue.
@@ -48,13 +48,16 @@ def exclude_issues_already_found(issues):
 
         if issue_id not in found_issues:
             new_issues.append(issue)
+            issue["sent"] = False
+            issue["ignore"] = False
             found_issues[issue_id] = {
                 "comment": issue["comment"],
                 "type": issue["type"],
                 "timestamp": issue["_timestamp"],
                 "dashboard": f"https://dashboard.kernelci.org/issue/{issue["id"]}",
-                "found": True
-                }
+                "sent": issue["sent"],
+                "ignore": issue["ignore"],
+            }
 
 
     # Save the updated found issues to storage (overwriting the file)
@@ -79,8 +82,8 @@ def generate_issues_summary(conn, origin):
             issue["type"] = "boot"
             boot_issues.append(issue)
 
-    new_build_issues = exclude_issues_already_found(build_issues)
-    new_boot_issues = exclude_issues_already_found(boot_issues)
+    new_build_issues = exclude_already_found_and_store(build_issues)
+    new_boot_issues = exclude_already_found_and_store(boot_issues)
     if not new_build_issues and not new_boot_issues:
         return None
 
