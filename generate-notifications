@@ -198,7 +198,7 @@ def main():
 
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available subcommands")
 
-    issues_summary_parser = subparsers.add_parser("issues_summary", help="Run the issue_summary function")
+    issues_parser = subparsers.add_parser("issues", help="Run the issue_summary function")
 
     issue_report_parser = subparsers.add_parser("issue_report", help="Run the issue_report function")
     issue_report_parser.add_argument("--id", type=str , required=True,
@@ -206,7 +206,7 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "issues_summary":
+    if args.command == "issues":
         report = generate_issues_summary(conn, origin)
     elif args.command == "issue_report":
         report = generate_issue_report(conn, args.id)
