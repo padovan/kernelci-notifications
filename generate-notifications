@@ -48,7 +48,13 @@ def exclude_issues_already_found(issues):
 
         if issue_id not in found_issues:
             new_issues.append(issue)
-            found_issues[issue_id] = {"found": True}  # Mark as found
+            found_issues[issue_id] = {
+                "comment": issue["comment"],
+                "type": issue["type"],
+                "timestamp": issue["_timestamp"],
+                "dashboard": f"https://dashboard.kernelci.org/issue/{issue["id"]}",
+                "found": True
+                }
 
 
     # Save the updated found issues to storage (overwriting the file)
@@ -66,10 +72,11 @@ def generate_issues_summary(conn, origin):
     build_issues = []
     boot_issues = []
     for issue in issues:
-        print(issue.keys())
         if issue["build_id"]:
+            issue["type"] = "build"
             build_issues.append(issue)
         elif issue["test_id"]:
+            issue["type"] = "boot"
             boot_issues.append(issue)
 
     new_build_issues = exclude_issues_already_found(build_issues)
