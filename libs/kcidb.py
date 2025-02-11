@@ -109,6 +109,7 @@ def kcidb_new_issues(conn):
            JOIN checkouts c ON b.checkout_id = c.id
            WHERE inc.origin = 'maestro'
             AND inc._timestamp >= NOW() - INTERVAL '3 days'
+            AND (t.path = 'boot' OR t.path = 'boot.nfs')
        )
 
         SELECT
@@ -254,13 +255,6 @@ def kcidb_test_incidents(conn, issue_id):
 
     params = {"issue_id": issue_id}
 
-    query = """
-        SELECT DISTINCT ON (t.environment_misc->>'platform')
-            t.* FROM tests t
-            LEFT JOIN incidents inc ON inc.test_id = t.id
-            WHERE inc.issue_id = %(issue_id)s
-            ORDER BY t.environment_misc->>'platform', t._timestamp DESC;
-    """
     query = """
         WITH ranked_tests AS (
             SELECT
