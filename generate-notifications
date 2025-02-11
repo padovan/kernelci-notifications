@@ -151,11 +151,34 @@ def create_email(sender, to, subject, message_text, cc):
     return {'raw': raw}
 
 
-def send_email_report(service, report, to, cc=None):
+def ask_confirmation():
+    while True:
+        choice = input(">> Do you want to send the email? (y/n): ").strip().lower()
+        if choice in ["y", "yes"]:
+            return True
+        elif choice in ["n", "no"]:
+            return False
+        else:
+            print("Please enter 'y' or 'n'.")
 
+
+def send_email_report(service, report, to, cc=None, yes=False):
     sender_email = "KernelCI bot <bot@kernelci.org>"
     subject = report["title"]
     message_text = report["content"]
+
+    if not yes:
+        print("===================")
+        print(f"Subject: {subject}")
+        print(f"To: {to}")
+        if cc:
+            print(f"Cc: {cc}")
+        print(message_text)
+        if not ask_confirmation():
+            print("Email sending aborted.")
+            return
+
+
     print(f"sending {subject}.")
 
     email = create_email(sender_email, to, subject, message_text, cc)
@@ -171,6 +194,7 @@ def main():
     parser.add_argument("--send", action="store_true", help="Send email report at the end.")
     parser.add_argument("--to", type=str, help="Recipient To: of the email")
     parser.add_argument("--cc", type=str, help="Recipient CC: of the email")
+    parser.add_argument("--yes", action="store_true", help="Send email without asking for confirmation")
 
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available subcommands")
 
@@ -192,7 +216,7 @@ def main():
         return
 
     if args.send:
-        send_email_report(service, report, args.to, args.cc)
+        send_email_report(service, report, args.to, args.cc, args.yes)
     else:
         print("\n==============================================")
         print(f"new report:\n> {report["title"]}")
