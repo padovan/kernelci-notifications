@@ -43,8 +43,22 @@ def gmail_send_email(service, user_id, email):
 
     try:
         sent_message = service.users().messages().send(userId=user_id, body=email).execute()
-        print(f"Message sent successfully! Message ID: {sent_message['id']}")
-        return sent_message['id']
+
+        full_message = service.users().messages().get(
+            userId=user_id,
+            id=sent_message['id'],
+            format='full'
+        ).execute()
+
+        headers = full_message['payload']['headers']
+        message_id = next(
+            (header['value'] for header in headers if header['name'].lower() == 'message-id'),
+            None
+        )
+        print(f"Message sent successfully! Message ID: {message_id}")
+
+        return message_id
+
     except Exception as error:
         print(f"An error occurred: {error}")
 
@@ -85,7 +99,7 @@ def send_email_report(service, report, email_args):
         print("\n==============================================")
         print(f"new report:\n> {subject}")
         print(message_text)
-        return
+        return None
 
     if not email_args.yes:
         print("===================")
@@ -96,10 +110,10 @@ def send_email_report(service, report, email_args):
         print(message_text)
         if not ask_confirmation():
             print("Email sending aborted.")
-            return
+            return None
 
 
     print(f"sending {subject}.")
 
     email = create_email(sender_email, email_args.to, subject, message_text, email_args.cc)
-    gmail_send_email(service, 'me', email)
+    return gmail_send_email(service, 'me', email)

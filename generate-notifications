@@ -48,7 +48,7 @@ def exclude_already_found_and_store(issues):
     for issue in issues:
         issue_id = issue['id']  # Assuming 'id' is the unique identifier
 
-        if issue_id not in found_issues:
+        if not found_issues.get(issue_id):
             new_issues.append(issue)
             issue["sent"] = False
             issue["ignore"] = False
@@ -86,21 +86,16 @@ def get_unsent_issues():
     return unsent_issues
 
 
-def mark_issues_as_sent(issues):
-    """Marks issues as sent in the storage file only if they are already marked as sent in the provided issues list."""
+def mark_issue_as_sent(issue_id, msg_id):
     with open(STORAGE_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # Update only issues where 'sent' is True in the provided list
-    for issue_id, details in issues.items():
-        if issue_id in data and details.get("sent") is True:
-            data[issue_id]["sent"] = True
-            if details.get("message_id"):
-                data[issue_id]["message_id"] = details.get("message_id")
+    if issue_id in data:
+        data[issue_id]["sent"] = True
+        data[issue_id]["message_id"] = msg_id
 
-    # Write back to the file
-    with open(STORAGE_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+        with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
 
 
 def generate_issues_summary(dbconn, service, origin, email_args):
@@ -168,7 +163,10 @@ def generate_issue_report(service, conn, issue_id, email_args):
             incident["last_pass_id"] = last_test[0]["id"]
         report = generate_boot_issue_report(issue, incidents)
 
-    send_email_report(service, report, email_args)
+    msg_id = send_email_report(service, report, email_args)
+
+    if msg_id and email_args.update:
+        mark_issue_as_sent(issue_id, msg_id)
 
 
 def create_and_send_issue_reports(service, conn, email_args):
@@ -177,9 +175,6 @@ def create_and_send_issue_reports(service, conn, email_args):
         if details["type"] != "build":
             continue
         generate_issue_report(service, conn, issue_id, email_args)
-        details["sent"] = True
-
-    mark_issues_as_sent(unsent_issues)
 
 
 def main():
@@ -202,6 +197,8 @@ def main():
         help="Id of the issue in the Dashboard/KCIDB")
     issue_report_parser.add_argument("--send-all", action="store_true",
         help="Automatically send issue reports for supported types")
+    issue_report_parser.add_argument("--update-storage", "-u", action="store_true",
+        help="Update json storage as we manipulate and report issues")
 
     tests_parser = subparsers.add_parser("tests", help="Check test status changes")
 
@@ -212,6 +209,7 @@ def main():
     email_args.yes = args.yes
     email_args.to = args.to
     email_args.cc = args.cc
+    email_args.update = args.update_storage
 
     if args.command == "issues":
         generate_issues_summary(dbconn, service, origin, email_args)
