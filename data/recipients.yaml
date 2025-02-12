@@ -1,0 +1,12 @@
+trees:
+  android:
+    - tkjos@google.com
+    - joneslee@google.com
+  stable:
+    - stable@vger.kernel.org
+  stable-rc:
+    - stable@vger.kernel.org
+  next:
+    - regressions@lists.linux.dev
+  mainline:
+    - regressions@lists.linux.dev

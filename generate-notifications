@@ -6,6 +6,7 @@ import jinja2
 import json
 import os
 import sys
+import yaml
 
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -109,6 +110,38 @@ def mark_issue_as_ignore(issue_id):
             json.dump(data, f, indent=4, ensure_ascii=False)
 
 
+def get_recipient_list(tree_name):
+    """
+    Read recipients from a YAML file for a given tree name.
+
+    Args:
+        tree_name (str): Name of the tree (e.g., 'android', 'stable', 'next')
+
+    Returns:
+        str: Comma-separated list of email addresses for the specified tree
+             Returns None if tree is not found
+    """
+    try:
+        with open('data/recipients.yaml', 'r') as file:
+            data = yaml.safe_load(file)
+
+        if tree_name in data['trees']:
+            recipients = data['trees'][tree_name]
+            return ', '.join(recipients)
+
+        return None
+
+    except FileNotFoundError:
+        print("Error: data/recipients.yaml file not found")
+        return None
+    except yaml.YAMLError as e:
+        print(f"Error parsing YAML file: {e}")
+        return None
+    except (KeyError, TypeError) as e:
+        print(f"Error accessing tree data: {e}")
+        return None
+
+
 def generate_issues_summary(dbconn, service, origin, email_args):
     issues = kcidb_new_issues(dbconn)
     build_issues = []
@@ -174,6 +207,12 @@ def generate_issue_report(service, conn, issue_id, email_args):
             incident["last_pass_commit"] = last_test[0]["git_commit_hash"]
             incident["last_pass_id"] = last_test[0]["id"]
         report = generate_boot_issue_report(issue, incidents)
+
+    cc = get_recipient_list("android")
+    if email_args.cc:
+        email_args.cc = ', '.join([email_args.cc, cc])
+    else:
+        email_args.cc = cc
 
     msg_id = send_email_report(service, report, email_args)
 
