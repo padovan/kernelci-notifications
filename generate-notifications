@@ -132,8 +132,8 @@ def generate_build_issue_report(issue, incidents):
     template = setup_jinja_template('issue_build.txt.j2')
     report= {}
     report["content"] = template.render(issue=issue, builds=incidents)
-    snippet = issue["comment"] if len(issue["comment"]) <= 60 else issue["comment"][:57]+ "..."
-    report["title"] = f"{issue["tree_name"]}/{issue["git_repository_branch"]}: new build regression: {snippet}"
+    snippet = issue["comment"] if len(issue["comment"]) <= 70 else issue["comment"][:67]+ "..."
+    report["title"] = f"[REGRESSION] {issue["tree_name"]}/{issue["git_repository_branch"]}: (build){snippet}"
     return report
 
 
@@ -141,8 +141,8 @@ def generate_boot_issue_report(issue, incidents):
     template = setup_jinja_template('issue_boot.txt.j2')
     report= {}
     report["content"] = template.render(issue=issue, boots=incidents)
-    snippet = issue["comment"] if len(issue["comment"]) <= 60 else issue["comment"][:57]+ "..."
-    report["title"] = f"{issue["tree_name"]}/{issue["git_repository_branch"]}: new boot regression: {snippet}"
+    snippet = issue["comment"] if len(issue["comment"]) <= 70 else issue["comment"][:67]+ "..."
+    report["title"] = f"[REGRESSION] {issue["tree_name"]}/{issue["git_repository_branch"]}: (boot) {snippet}"
     return report
 
 
