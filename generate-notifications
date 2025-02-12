@@ -98,6 +98,17 @@ def mark_issue_as_sent(issue_id, msg_id):
             json.dump(data, f, indent=4, ensure_ascii=False)
 
 
+def mark_issue_as_ignore(issue_id):
+    with open(STORAGE_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if issue_id in data:
+        data[issue_id]["ignore"] = True
+
+        with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+
+
 def generate_issues_summary(dbconn, service, origin, email_args):
     issues = kcidb_new_issues(dbconn)
     build_issues = []
@@ -247,6 +258,8 @@ def main():
         help="Automatically send issue reports for supported types")
     issue_report_parser.add_argument("--update-storage", "-u", action="store_true",
         help="Update json storage as we manipulate and report issues")
+    issue_report_parser.add_argument("--ignore", type=str,
+        help="Update json storage as we manipulate and report issues")
 
     tests_parser = subparsers.add_parser("tests", help="Check test status changes")
 
@@ -257,13 +270,16 @@ def main():
     email_args.yes = args.yes
     email_args.to = args.to
     email_args.cc = args.cc
-    email_args.update = args.update_storage
 
     if args.command == "issues":
         generate_issues_summary(dbconn, service, origin, email_args)
     elif args.command == "issue_report":
+        email_args.update = args.update_storage
         if args.send_all:
             create_and_send_issue_reports(service, dbconn, email_args)
+            return
+        elif args.ignore:
+            mark_issue_as_ignore(args.ignore)
             return
         else:
             generate_issue_report(service, dbconn, args.id, email_args)
