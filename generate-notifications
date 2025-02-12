@@ -124,6 +124,7 @@ def generate_issues_summary(dbconn, service, origin, email_args):
     new_build_issues = exclude_already_found_and_store(build_issues)
     new_boot_issues = exclude_already_found_and_store(boot_issues)
     if not new_build_issues and not new_boot_issues:
+        print("No new issues")
         return None
 
     template = setup_jinja_template('issues.txt.j2')
