@@ -9,6 +9,7 @@ import psycopg2
 def kcidb_execute_query(conn, query, params=None):
     try:
         with conn.cursor() as cur:
+            #print(cur.mogrify(query, params).decode('utf-8'))
             cur.execute(query, params)
             rows = cur.fetchall()
             if not rows:
@@ -41,7 +42,7 @@ def kcidb_new_issues(conn):
         FROM
             public.issues i
         WHERE origin = 'maestro'
-            AND i._timestamp >= NOW() - INTERVAL '3 days'
+            AND i._timestamp >= NOW() - INTERVAL '4 days'
             AND NOT i.comment LIKE '%error_return_code%'
         ),
 
@@ -63,7 +64,7 @@ def kcidb_new_issues(conn):
         FROM highest_version h
         LEFT JOIN incidents inc
             ON h.id = inc.issue_id
-        WHERE inc._timestamp < NOW() - INTERVAL '3 days'
+        WHERE inc._timestamp < NOW() - INTERVAL '4 days'
         ),
 
         new_issues AS (
@@ -88,7 +89,7 @@ def kcidb_new_issues(conn):
            JOIN builds b ON inc.build_id = b.id
            JOIN checkouts c ON b.checkout_id = c.id
            WHERE inc.origin = 'maestro'
-            AND inc._timestamp >= NOW() - INTERVAL '3 days'
+            AND inc._timestamp >= NOW() - INTERVAL '4 days'
 
            UNION
 
@@ -108,7 +109,7 @@ def kcidb_new_issues(conn):
            JOIN builds b ON t.build_id = b.id
            JOIN checkouts c ON b.checkout_id = c.id
            WHERE inc.origin = 'maestro'
-            AND inc._timestamp >= NOW() - INTERVAL '3 days'
+            AND inc._timestamp >= NOW() - INTERVAL '4 days'
             AND (t.path = 'boot' OR t.path = 'boot.nfs')
        )
 
@@ -313,9 +314,13 @@ def kcidb_last_test_without_issue(conn, issue, incident):
         FROM tests t
         LEFT JOIN builds b ON b.id = t.build_id
         LEFT JOIN checkouts c ON c.id = b.checkout_id
-        WHERE t.origin = %(origin)s AND t._timestamp < %(timestamp)s
-            AND t.environment_misc->>'platform' = %(platform)s AND t.path = %(path)s
-            AND c.git_repository_url = %(giturl)s AND c.git_repository_branch = %(branch)s
+        WHERE t.origin = %(origin)s
+            AND t._timestamp < %(timestamp)s
+            AND t.environment_misc->>'platform' = %(platform)s
+            AND t.path = %(path)s
+            AND t.status = 'PASS'
+            AND c.git_repository_url = %(giturl)s
+            AND c.git_repository_branch = %(branch)s
         LIMIT 10
     )
 
@@ -325,6 +330,94 @@ def kcidb_last_test_without_issue(conn, issue, incident):
     """
 
     return kcidb_execute_query(conn, query, params)
+
+
+def kcidb_last_test_without_issue_koike(conn, issue, incident):
+    """Fetches build incidents of a given issue."""
+
+    params = {
+            "origin": "maestro",
+            "issue_id": issue["id"],
+            "path": incident["path"],
+            "platform": incident["platform"],
+            "timestamp": incident["oldest_timestamp"],
+            "giturl": issue["git_repository_url"],
+            "branch": issue["git_repository_branch"],
+            "interval": "18 days"
+            }
+
+    query = """
+    WITH tests_with_issue AS (
+        SELECT DISTINCT c.git_commit_hash
+        FROM tests t
+        JOIN builds b ON t.build_id = b.id
+        JOIN checkouts c ON b.checkout_id = c.id
+        JOIN incidents inc ON inc.test_id = t.id
+        WHERE inc.issue_id = %(issue_id)s
+     )
+    SELECT t.id, t.start_time, c.git_commit_hash
+        FROM tests t
+        JOIN builds b ON t.build_id = b.id
+        JOIN checkouts c ON b.checkout_id = c.id
+        WHERE c.git_repository_url = %(giturl)s
+        AND c.git_repository_branch = %(branch)s
+        AND t.environment_misc->>'platform' = %(platform)s
+        AND t.path = %(path)s
+        AND t.status = 'PASS'
+        AND c.origin = %(origin)s
+        AND t._timestamp >= NOW() - INTERVAL %(interval)s
+        AND c.git_commit_hash NOT IN
+            (
+                SELECT git_commit_hash FROM tests_with_issue
+            )
+        ORDER BY b.start_time DESC
+        LIMIT 1;
+    """
+
+    return kcidb_execute_query(conn, query, params)
+
+
+def kcidb_tests_results(conn, origin, giturl, branch):
+    """Fetches build incidents of a given issue."""
+
+    params = {
+            "origin": origin,
+            "giturl": giturl,
+            "branch": branch,
+            "path": "boot",
+            "interval": "18 days"
+            }
+
+    query = """
+            WITH ranked_tests AS (
+                SELECT
+                    t.*,
+                    b.architecture,
+                    b.compiler,
+                    c.git_commit_hash,
+                    c.git_commit_name,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY t.path
+                        ORDER BY t.start_time DESC NULLS LAST
+                    ) as rn
+                FROM tests t
+                JOIN builds b ON t.build_id = b.id
+                JOIN checkouts c ON b.checkout_id = c.id
+                WHERE t.origin = %(origin)s
+                    AND c.git_repository_url = %(giturl)s
+                    AND c.git_repository_branch = %(branch)s
+                    AND t.path LIKE %(path)s
+                    AND c._timestamp >= NOW() - INTERVAL %(interval)s
+                    AND t._timestamp >= NOW() - INTERVAL %(interval)s
+            )
+            SELECT *
+            FROM ranked_tests
+            WHERE rn <= 10
+            ORDER BY path, start_time DESC NULLS LAST;
+        """
+
+    return kcidb_execute_query(conn, query, params)
+
 
 def kcidb_connect():
     """Connect to PostgreSQL using the .pg_service.conf configuration."""

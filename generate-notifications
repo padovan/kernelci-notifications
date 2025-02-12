@@ -5,13 +5,13 @@ import argparse
 import jinja2
 import json
 import os
-import base64
 import sys
 
+from collections import defaultdict
 from datetime import datetime, timezone
-from email.message import EmailMessage
+from types import SimpleNamespace
 
-from libs.gmail_api import *
+from libs.email import *
 from libs.kcidb import *
 
 
@@ -103,8 +103,8 @@ def mark_issues_as_sent(issues):
         json.dump(data, f, indent=4, ensure_ascii=False)
 
 
-def generate_issues_summary(conn, origin):
-    issues = kcidb_new_issues(conn)
+def generate_issues_summary(dbconn, service, origin, email_args):
+    issues = kcidb_new_issues(dbconn)
     build_issues = []
     boot_issues = []
     for issue in issues:
@@ -125,7 +125,8 @@ def generate_issues_summary(conn, origin):
     now = datetime.now(timezone.utc)
     report["content"] = template.render(build_issues=build_issues, boot_issues=boot_issues)
     report["title"] = f"new issues summary - {now.strftime("%Y-%m-%d %H:%M %Z")}"
-    return report
+
+    send_email_report(service, report, email_args)
 
 
 def generate_build_issue_report(issue, incidents):
@@ -142,11 +143,11 @@ def generate_boot_issue_report(issue, incidents):
     report= {}
     report["content"] = template.render(issue=issue, boots=incidents)
     snippet = issue["comment"] if len(issue["comment"]) <= 70 else issue["comment"][:67]+ "..."
-    report["title"] = f"[REGRESSION] {issue["tree_name"]}/{issue["git_repository_branch"]}: (boot) {snippet}"
+    report["title"] = f"[REGRESSION] {issue["tree_name"]}/{issue["git_repository_branch"]}: (boot){snippet}"
     return report
 
 
-def generate_issue_report(conn, issue_id):
+def generate_issue_report(service, conn, issue_id, email_args):
     result = kcidb_issue_details(conn, issue_id)
     if not result:
         print("issue not found!")
@@ -154,86 +155,36 @@ def generate_issue_report(conn, issue_id):
     issue = result[0]
     if issue["build_id"]:
         incidents = kcidb_build_incidents(conn, issue_id)
-        return generate_build_issue_report(issue, incidents)
+        report = generate_build_issue_report(issue, incidents)
     elif issue["test_id"]:
         incidents = kcidb_test_incidents(conn, issue_id)
         for incident in incidents:
             last_test = kcidb_last_test_without_issue(conn, issue, incident)
-            incident["last_pass"] = last_test[0]["_timestamp"]
+            print(f"https://dashboard.kernelci.org/test/{last_test[0]["id"]}")
+            last_test = kcidb_last_test_without_issue_koike(conn, issue, incident)
+            print(f"https://dashboard.kernelci.org/test/{last_test[0]["id"]}")
+            incident["last_pass"] = last_test[0]["start_time"]
             incident["last_pass_commit"] = last_test[0]["git_commit_hash"]
             incident["last_pass_id"] = last_test[0]["id"]
-        return generate_boot_issue_report(issue, incidents)
+        report = generate_boot_issue_report(issue, incidents)
+
+    send_email_report(service, report, email_args)
 
 
-def create_email(sender, to, subject, message_text, cc):
-    message = EmailMessage()
-    message.set_content(message_text)
-    # Set email headers
-    if to:
-        message['to'] = to
-    else:
-        message['to'] = "gustavo.padovan@collabora.com"
-        #message['to'] = "kernelci-results@groups.io"
-    if cc:
-        message['cc'] = cc
-    message['from'] = sender
-    message['subject'] = subject
-
-    # Encode the message as base64
-    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-    return {'raw': raw}
-
-
-def ask_confirmation():
-    while True:
-        choice = input(">> Do you want to send the email? (y/n): ").strip().lower()
-        if choice in ["y", "yes"]:
-            return True
-        elif choice in ["n", "no"]:
-            return False
-        else:
-            print("Please enter 'y' or 'n'.")
-
-
-def send_email_report(service, report, to, cc=None, yes=False, dry_run=False):
-    sender_email = "KernelCI bot <bot@kernelci.org>"
-    subject = report["title"]
-    message_text = report["content"]
-
-    if not yes:
-        print("===================")
-        print(f"Subject: {subject}")
-        print(f"To: {to}")
-        if cc:
-            print(f"Cc: {cc}")
-        print(message_text)
-        if not ask_confirmation():
-            print("Email sending aborted.")
-            return
-
-
-    print(f"sending {subject}.")
-
-    email = create_email(sender_email, to, subject, message_text, cc)
-    gmail_send_email(service, 'me', email, dry_run)
-
-
-def create_and_send_issue_reports(service, conn, to, cc, yes, dry_run):
+def create_and_send_issue_reports(service, conn, email_args):
     unsent_issues = get_unsent_issues()
     for issue_id, details in unsent_issues.items():
         if details["type"] != "build":
             continue
-        report = generate_issue_report(conn, issue_id)
-        msg_id = send_email_report(service, report, to, cc, yes, dry_run)
+        generate_issue_report(service, conn, issue_id, email_args)
         details["sent"] = True
-        details["message_id"] = msg_id
 
     mark_issues_as_sent(unsent_issues)
 
 
 def main():
     service = gmail_setup_service()
-    conn = kcidb_connect()
+    dbconn = kcidb_connect()
     origin = "maestro"
 
     parser = argparse.ArgumentParser(description="Run notifications script with subcommands.")
@@ -251,30 +202,26 @@ def main():
         help="Id of the issue in the Dashboard/KCIDB")
     issue_report_parser.add_argument("--send-all", action="store_true",
         help="Automatically send issue reports for supported types")
-    issue_report_parser.add_argument("--dry-run", action="store_true",
-        help="Only pretend to send, but don't send in the end.")
+
+    tests_parser = subparsers.add_parser("tests", help="Check test status changes")
 
     args = parser.parse_args()
 
+    email_args = SimpleNamespace()
+    email_args.send = args.send
+    email_args.yes = args.yes
+    email_args.to = args.to
+    email_args.cc = args.cc
+
     if args.command == "issues":
-        report = generate_issues_summary(conn, origin)
+        generate_issues_summary(dbconn, service, origin, email_args)
     elif args.command == "issue_report":
         if args.send_all:
-            create_and_send_issue_reports(service, conn, args.to, args.cc, args.yes, args.dry_run)
+            create_and_send_issue_reports(service, dbconn, email_args)
             return
         else:
-            report = generate_issue_report(conn, args.id)
+            generate_issue_report(service, dbconn, args.id, email_args)
 
-    if not report:
-        print("No new regressions.")
-        return
-
-    if args.send:
-        send_email_report(service, report, args.to, args.cc, args.yes)
-    else:
-        print("\n==============================================")
-        print(f"new report:\n> {report["title"]}")
-        print(report["content"])
 
 if __name__ == "__main__":
     main()

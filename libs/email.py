@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import base64
 import os
+
+from email.message import EmailMessage
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -35,11 +38,8 @@ def gmail_setup_service():
     service = build('gmail', 'v1', credentials=creds)
     return service
 
-def gmail_send_email(service, user_id, email, dry_run=False):
+def gmail_send_email(service, user_id, email):
     """Send an email using the Gmail API."""
-    if dry_run:
-        print(email)
-        return "<dry run>"
 
     try:
         sent_message = service.users().messages().send(userId=user_id, body=email).execute()
@@ -48,3 +48,58 @@ def gmail_send_email(service, user_id, email, dry_run=False):
     except Exception as error:
         print(f"An error occurred: {error}")
 
+
+def create_email(sender, to, subject, message_text, cc):
+    message = EmailMessage()
+    message.set_content(message_text)
+    # Set email headers
+    if to:
+        message['to'] = to
+    if cc:
+        message['cc'] = cc
+    message['from'] = sender
+    message['subject'] = subject
+
+    # Encode the message as base64
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    return {'raw': raw}
+
+
+def ask_confirmation():
+    while True:
+        choice = input(">> Do you want to send the email? (y/n): ").strip().lower()
+        if choice in ["y", "yes"]:
+            return True
+        elif choice in ["n", "no"]:
+            return False
+        else:
+            print("Please enter 'y' or 'n'.")
+
+
+def send_email_report(service, report, email_args):
+    sender_email = "KernelCI bot <bot@kernelci.org>"
+    subject = report["title"]
+    message_text = report["content"]
+
+    if not email_args.send:
+        print("\n==============================================")
+        print(f"new report:\n> {subject}")
+        print(message_text)
+        return
+
+    if not email_args.yes:
+        print("===================")
+        print(f"Subject: {subject}")
+        print(f"To: {email_args.to}")
+        if email_args.cc:
+            print(f"Cc: {email_args.cc}")
+        print(message_text)
+        if not ask_confirmation():
+            print("Email sending aborted.")
+            return
+
+
+    print(f"sending {subject}.")
+
+    email = create_email(sender_email, email_args.to, subject, message_text, email_args.cc)
+    gmail_send_email(service, 'me', email)
