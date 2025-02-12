@@ -118,7 +118,7 @@ def generate_issues_summary(dbconn, service, origin, email_args):
     template = setup_jinja_template('issues.txt.j2')
     report= {}
     now = datetime.now(timezone.utc)
-    report["content"] = template.render(build_issues=build_issues, boot_issues=boot_issues)
+    report["content"] = template.render(build_issues=new_build_issues, boot_issues=new_boot_issues)
     report["title"] = f"new issues summary - {now.strftime("%Y-%m-%d %H:%M %Z")}"
 
     send_email_report(service, report, email_args)
