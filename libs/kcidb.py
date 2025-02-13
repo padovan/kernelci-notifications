@@ -389,7 +389,7 @@ def kcidb_tests_results(conn, origin, giturl, branch):
             "giturl": giturl,
             "branch": branch,
             "path": "%",
-            "interval": "18 days"
+            "interval": "25 days"
             }
 
     query = """
@@ -402,7 +402,6 @@ def kcidb_tests_results(conn, origin, giturl, branch):
                     b.architecture,
                     b.compiler,
                     c.git_commit_hash,
-                    c.git_commit_name,
                     ROW_NUMBER() OVER (
                         PARTITION BY t.path
                         ORDER BY t.start_time DESC NULLS LAST
