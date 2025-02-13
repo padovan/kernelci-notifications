@@ -220,9 +220,10 @@ def generate_issue_report(service, conn, issue_id, email_args):
         mark_issue_as_sent(issue_id, msg_id)
 
 
-def evaluate_test_results(conn, origin, tree, branch):
-    tests = kcidb_tests_results(conn, origin, tree, branch)
-    print(f"Test results changes for {tree}/{branch} (origin: {origin})")
+def evaluate_test_results(conn, origin, giturl, branch):
+    tests = kcidb_tests_results(conn, origin, giturl, branch)
+    print(f"Tree: {giturl}")
+    print(f"Test results changes on {branch} (origin: {origin})")
 
     # First group by platform, then by path
     grouped = defaultdict(lambda: defaultdict(list))
@@ -289,8 +290,8 @@ def main():
         help="Update json storage as we manipulate and report issues")
 
     tests_parser = subparsers.add_parser("tests", help="Check test status changes")
-    tests_parser.add_argument("--tree", type=str,
-        help="git tree name as in the the KernelCI Dashboard")
+    tests_parser.add_argument("--giturl", type=str,
+        help="git tree url as in the the KernelCI Dashboard")
     tests_parser.add_argument("--branch", type=str,
         help="git tree name as in the the KernelCI Dashboard")
 
@@ -315,7 +316,7 @@ def main():
         else:
             generate_issue_report(service, dbconn, args.id, email_args)
     elif args.command == "tests":
-            evaluate_test_results(dbconn, origin, args.tree, args.branch)
+            evaluate_test_results(dbconn, origin, args.giturl, args.branch)
             return
 
 
