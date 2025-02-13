@@ -27,8 +27,13 @@ def kcidb_execute_query(conn, query, params=None):
         sys.exit()
 
 
-def kcidb_new_issues(conn):
-    """Fetch issues from the last 3 days, including related checkouts."""
+def kcidb_new_issues(conn, origin):
+    """Fetch issues from the last few days, including related checkouts."""
+
+    params = {
+            "origin": origin,
+            "interval": '4 days'
+            }
 
     query = """
         WITH ranked_issues AS (
@@ -41,9 +46,8 @@ def kcidb_new_issues(conn):
             ROW_NUMBER() OVER (PARTITION BY i.id ORDER BY i.version DESC) AS rn
         FROM
             public.issues i
-        WHERE origin = 'maestro'
+        WHERE origin = %(origin)s
             AND i._timestamp >= NOW() - INTERVAL '4 days'
-            AND NOT i.comment LIKE '%error_return_code%'
         ),
 
         highest_version AS (
@@ -64,7 +68,7 @@ def kcidb_new_issues(conn):
         FROM highest_version h
         LEFT JOIN incidents inc
             ON h.id = inc.issue_id
-        WHERE inc._timestamp < NOW() - INTERVAL '4 days'
+        WHERE inc._timestamp < NOW() - INTERVAL %(interval)s
         ),
 
         new_issues AS (
@@ -88,8 +92,8 @@ def kcidb_new_issues(conn):
            FROM incidents inc
            JOIN builds b ON inc.build_id = b.id
            JOIN checkouts c ON b.checkout_id = c.id
-           WHERE inc.origin = 'maestro'
-            AND inc._timestamp >= NOW() - INTERVAL '4 days'
+           WHERE inc.origin = %(origin)s
+            AND inc._timestamp >= NOW() - INTERVAL %(interval)s
 
            UNION
 
@@ -108,8 +112,8 @@ def kcidb_new_issues(conn):
            JOIN tests t ON inc.test_id = t.id
            JOIN builds b ON t.build_id = b.id
            JOIN checkouts c ON b.checkout_id = c.id
-           WHERE inc.origin = 'maestro'
-            AND inc._timestamp >= NOW() - INTERVAL '4 days'
+           WHERE inc.origin = %(origin)s
+            AND inc._timestamp >= NOW() - INTERVAL %(interval)s
             AND (t.path = 'boot' OR t.path = 'boot.nfs')
        )
 
@@ -146,7 +150,7 @@ def kcidb_new_issues(conn):
         ORDER BY n._timestamp DESC;
         """
 
-    return kcidb_execute_query(conn, query)
+    return kcidb_execute_query(conn, query, params)
 
 
 def kcidb_issue_details(conn, issue_id):
