@@ -10,6 +10,7 @@ import yaml
 
 from collections import defaultdict
 from datetime import datetime, timezone
+from io import StringIO
 from types import SimpleNamespace
 
 from libs.email import *
@@ -221,39 +222,46 @@ def generate_issue_report(service, conn, issue_id, email_args):
 
 
 def evaluate_test_results(conn, origin, giturl, branch):
+    buffer = StringIO()
     tests = kcidb_tests_results(conn, origin, giturl, branch)
-    print(f"Tree: {giturl}")
-    print(f"Test results changes on {branch} (origin: {origin})")
 
-    # First group by platform, then by path
+    buffer.write(f"Tree: {giturl}\n")
+    buffer.write(f"Test results changes on {branch} (origin: {origin})\n")
+
     grouped = defaultdict(lambda: defaultdict(list))
 
     for t in tests:
-        platform = t["environment_misc"].get("platform", "unknown")
+        platform = t["platform"]
         grouped[platform][t["path"]].append(t)
 
     for platform, paths in grouped.items():
         printed_platform = False
 
+        platform_changes = []
         for path, test_group in paths.items():
-
             unique_statuses = {t["status"] for t in test_group}
             if len(unique_statuses) == 1:
                 continue
 
             if not printed_platform:
-                sys.stdout.write(f"\nHardware: {platform}\n")
+                buffer.write(f"\nHardware: {platform}\n")
                 printed_platform = True
 
+            status_line = []
             for t in test_group:
                 if t["status"] == "PASS":
-                    sys.stdout.write("✅ ")
+                    status_line.append("✅")
                 elif t["status"] == "FAIL":
-                    sys.stdout.write("❌ ")
+                    status_line.append("❌")
                 else:  # Inconclusive or other statuses
-                    sys.stdout.write("❔ ")
+                    status_line.append("❔")
 
-            sys.stdout.write(f"{path}\n")
+            buffer.write(f"{' '.join(status_line)} {path}\n")
+
+    content =  buffer.getvalue()
+    buffer.close()
+
+    print(content)
 
 
 def create_and_send_issue_reports(service, conn, email_args):
