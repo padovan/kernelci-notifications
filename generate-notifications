@@ -219,24 +219,10 @@ def generate_issue_report(service, conn, issue_id, email_args):
     if msg_id and email_args.update:
         mark_issue_as_sent(issue_id, msg_id)
 
-colors = {
-    'red': '\033[91m',
-    'green': '\033[92m',
-    'yellow': '\033[93m',
-    'blue': '\033[94m',
-    'reset': '\033[0m'
-}
 
-
-def evaluate_test_results(conn, origin):
-    giturl = "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
-    #   giturl = "https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git"
-    #giturl = "https://git.kernel.org/pub/scm/linux/kernel/git/broonie/regulator.git"
-    branch = "master"
-    tests = kcidb_tests_results(conn, origin, giturl, branch)
-    print(f"origin: {origin}")
-    print(f"tree: {giturl}")
-    print(f"branch: {branch}")
+def evaluate_test_results(conn, origin, tree, branch):
+    tests = kcidb_tests_results(conn, origin, tree, branch)
+    print(f"Test results changes for {tree}/{branch} (origin: {origin})")
 
     # First group by platform, then by path
     grouped = defaultdict(lambda: defaultdict(list))
@@ -260,11 +246,12 @@ def evaluate_test_results(conn, origin):
 
             for t in test_group:
                 if t["status"] == "PASS":
-                    sys.stdout.write(f"{colors['green']}✓ {colors['reset']}")
+                    sys.stdout.write("✅ ")
                 elif t["status"] == "FAIL":
-                    sys.stdout.write(f"{colors['red']}𐄂 {colors['reset']}")
-                else:
-                    sys.stdout.write(f"{colors['yellow']}? {colors['reset']}")
+                    sys.stdout.write("❌ ")
+                else:  # Inconclusive or other statuses
+                    sys.stdout.write("❔ ")
+
             sys.stdout.write(f"{path}\n")
 
 
@@ -302,6 +289,10 @@ def main():
         help="Update json storage as we manipulate and report issues")
 
     tests_parser = subparsers.add_parser("tests", help="Check test status changes")
+    tests_parser.add_argument("--tree", type=str,
+        help="git tree name as in the the KernelCI Dashboard")
+    tests_parser.add_argument("--branch", type=str,
+        help="git tree name as in the the KernelCI Dashboard")
 
     args = parser.parse_args()
 
@@ -324,7 +315,7 @@ def main():
         else:
             generate_issue_report(service, dbconn, args.id, email_args)
     elif args.command == "tests":
-            evaluate_test_results(dbconn, origin)
+            evaluate_test_results(dbconn, origin, args.tree, args.branch)
             return
 
 
