@@ -408,6 +408,7 @@ def kcidb_tests_results(conn, origin, giturl, branch):
                     AND c.git_repository_branch = %(branch)s
                     AND t.path LIKE %(path)s
                     AND c._timestamp >= NOW() - INTERVAL %(interval)s
+                    AND b._timestamp >= NOW() - INTERVAL %(interval)s
                     AND t._timestamp >= NOW() - INTERVAL %(interval)s
             )
             SELECT *
