@@ -10,7 +10,7 @@ New build issue found on {{ issue["tree_name"] }}/{{ issue["git_repository_branc
 {{ issue["comment"]}}
 ---
 
-- dashboard: https://dashboard.kernelci.org/issue/{{ issue["id"] }}
+- dashboard: https://d.kernelci.org/issue/{{ issue["id"] }}
 - giturl: {{ issue["git_repository_url"]}}
 - commit HEAD:  {{ issue["git_commit_hash"] }}
 
@@ -25,7 +25,7 @@ Log excerpt:
 {% for build in builds %}
 ## {{ build["config_name"] }} on ({{ build["architecture"] }}):
 - compiler: {{ build["compiler"] }}
-- dashboard: https://dashboard.kernelci.org/build/{{build["id"]}}
+- dashboard: https://d.kernelci.org/build/{{build["id"]}}
 {% endfor %}
 
 #kernelci issue {{ issue["id"] }}

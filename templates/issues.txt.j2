@@ -13,7 +13,7 @@ Build regressions:
 - Tree: {{ issue["tree_name"] }}/{{ issue["git_repository_branch"] }}
 - Commit HEAD: {{ issue["git_commit_hash"] }}
 - Incidents Count: {{issue["incident_count"]}}
-- Dashboard: https://dashboard.kernelci.org/issue/{{ issue["id"] }}
+- Dashboard: https://d.kernelci.org/issue/{{ issue["id"] }}
 - Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{ issue["id"] }}
 ---
 {% endfor %}
@@ -29,7 +29,7 @@ Boot regressions:
 - Tree: {{ issue["tree_name"] }}/{{ issue["git_repository_branch"]}}
 - Commit HEAD: {{ issue["git_commit_hash"] }}
 - Incidents Count: {{issue["incident_count"]}}
-- Dashboard: https://dashboard.kernelci.org/issue/{{ issue["id"] }}
+- Dashboard: https://d.kernelci.org/issue/{{ issue["id"] }}
 - Grafana: https://grafana.kernelci.org/d/issue/issue?var-id={{ issue["id"] }}
 ---
 {% endfor %}
