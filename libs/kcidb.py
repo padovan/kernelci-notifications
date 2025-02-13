@@ -388,14 +388,17 @@ def kcidb_tests_results(conn, origin, giturl, branch):
             "origin": origin,
             "giturl": giturl,
             "branch": branch,
-            "path": "boot",
+            "path": "%",
             "interval": "18 days"
             }
 
     query = """
             WITH ranked_tests AS (
                 SELECT
-                    t.*,
+                    t.path,
+                    t.status,
+                    t.start_time,
+                    t.environment_misc->>'platform' AS platform,
                     b.architecture,
                     b.compiler,
                     c.git_commit_hash,
