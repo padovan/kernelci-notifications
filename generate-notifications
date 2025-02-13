@@ -250,11 +250,11 @@ def evaluate_test_results(conn, origin, giturl, branch):
             status_line = []
             for t in test_group:
                 if t["status"] == "PASS":
-                    status_line.append("✅")
+                    status_line.append("✅ ")
                 elif t["status"] == "FAIL":
-                    status_line.append("❌")
+                    status_line.append("❌ ")
                 else:  # Inconclusive or other statuses
-                    status_line.append("❔")
+                    status_line.append("⚠️ ")
 
             buffer.write(f"{' '.join(status_line)} {path}\n")
 
