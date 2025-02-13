@@ -208,7 +208,7 @@ def generate_issue_report(service, conn, issue_id, email_args):
             incident["last_pass_id"] = last_test[0]["id"]
         report = generate_boot_issue_report(issue, incidents)
 
-    cc = get_recipient_list("android")
+    cc = get_recipient_list(issue["tree_name"])
     if email_args.cc:
         email_args.cc = ', '.join([email_args.cc, cc])
     else:
