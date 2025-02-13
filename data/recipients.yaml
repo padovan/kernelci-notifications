@@ -10,3 +10,5 @@ trees:
     - regressions@lists.linux.dev
   mainline:
     - regressions@lists.linux.dev
+  cip:
+    - cip-dev@lists.cip-project.org
