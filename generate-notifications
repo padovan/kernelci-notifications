@@ -221,14 +221,16 @@ def generate_issue_report(service, conn, issue_id, email_args):
         mark_issue_as_sent(issue_id, msg_id)
 
 
-def evaluate_test_results(conn, origin, giturl, branch):
+def evaluate_test_results(service, conn, origin, giturl, branch, email_args):
     buffer = StringIO()
     tests = kcidb_tests_results(conn, origin, giturl, branch)
+    tree_name = kcidb_tree_name(conn, origin, giturl)
 
-    buffer.write(f"Tree: {giturl}\n")
-    buffer.write(f"Test results changes on {branch} (origin: {origin})\n")
+    buffer.write(f"Test results changes {tree_name}/{branch} (origin: {origin})\n\n")
 
     grouped = defaultdict(lambda: defaultdict(list))
+
+    has_changes = False
 
     for t in tests:
         platform = t["platform"]
@@ -237,7 +239,6 @@ def evaluate_test_results(conn, origin, giturl, branch):
     for platform, paths in grouped.items():
         printed_platform = False
 
-        platform_changes = []
         for path, test_group in paths.items():
             unique_statuses = {t["status"] for t in test_group}
             if len(unique_statuses) == 1:
@@ -246,6 +247,8 @@ def evaluate_test_results(conn, origin, giturl, branch):
             if not printed_platform:
                 buffer.write(f"\nHardware: {platform}\n")
                 printed_platform = True
+
+            has_changes = True
 
             status_line = []
             for t in test_group:
@@ -258,10 +261,21 @@ def evaluate_test_results(conn, origin, giturl, branch):
 
             buffer.write(f"{' '.join(status_line)} {path}\n")
 
-    content =  buffer.getvalue()
+    if not has_changes:
+        buffer.write(f"\nNo test status changes observed.\n")
+    else:
+        buffer.write(f"\n----\nShowing history for each test. Leftmost is newer.\n")
+        buffer.write(f"Legend: ✅ PASS   ❌ FAIL   ⚠️ INCONCLUSIVE\n")
+
+    report = {}
+    report["content"] =  buffer.getvalue()
     buffer.close()
 
-    print(content)
+    now = datetime.now(timezone.utc)
+    report["title"] = f"[STATUS CHANGES] {tree_name}/{branch} - {now.strftime("%Y-%m-%d %H:%M %Z")}"
+
+    print(report["content"])
+    send_email_report(service, report, email_args)
 
 
 def create_and_send_issue_reports(service, conn, email_args):
@@ -324,7 +338,7 @@ def main():
         else:
             generate_issue_report(service, dbconn, args.id, email_args)
     elif args.command == "tests":
-            evaluate_test_results(dbconn, origin, args.giturl, args.branch)
+            evaluate_test_results(service, dbconn, origin, args.giturl, args.branch, email_args)
             return
 
 
