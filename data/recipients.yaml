@@ -12,3 +12,6 @@ trees:
     - regressions@lists.linux.dev
   cip:
     - cip-dev@lists.cip-project.org
+  chromiumos:
+    - laura.nao@collabora.com
+    - shreeya.patel@collabora.com
