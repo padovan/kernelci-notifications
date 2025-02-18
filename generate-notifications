@@ -221,58 +221,127 @@ def generate_issue_report(service, conn, issue_id, email_args):
         mark_issue_as_sent(issue_id, msg_id)
 
 
+def add_to_test_results_buffer(buffer, grouped):
+    has_changes = False
+    for platform, configs in grouped.items():
+        printed_platform = False
+
+        for config_name, paths in configs.items():
+            for path, test_group in paths.items():
+                unique_statuses = {t["status"] for t in test_group}
+                if len(unique_statuses) == 1:
+                    continue
+
+                if not printed_platform:
+                    buffer.write(f"\nHardware: {platform}\n")
+                    printed_platform = True
+
+                buffer.write(f"- {path} ({config_name})\n")
+
+                has_changes = True
+                status_line = []
+
+                for t in test_group:
+                    if t["status"] == "PASS":
+                        status_line.append("✅ ")
+                    elif t["status"] == "FAIL":
+                        status_line.append("❌ ")
+                    else:  # Inconclusive or other statuses
+                        status_line.append("⚠️ ")
+
+                buffer.write(f"  {' '.join(status_line)}\n")
+
+    return has_changes
+
 def evaluate_test_results(service, conn, origin, giturl, branch, email_args):
     buffer = StringIO()
     tests = kcidb_tests_results(conn, origin, giturl, branch)
     tree_name = kcidb_tree_name(conn, origin, giturl)
-
     buffer.write(f"Test results changes {tree_name}/{branch} (origin: {origin})\n\n")
 
-    grouped = defaultdict(lambda: defaultdict(list))
-
-    has_changes = False
+    # Group by platform, then by config_name, then by path
+    grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    new_issues = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    fixed_issues = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    unstable_tests = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
     for t in tests:
-        platform = t["platform"]
-        grouped[platform][t["path"]].append(t)
+        platform = t.get("platform", "unknown platform")
+        config_name = t.get("config_name", "unknown config")
+        grouped[platform][config_name][t["path"]].append(t)
 
-    for platform, paths in grouped.items():
-        printed_platform = False
+    for platform, configs in grouped.items():
+        for config_name, paths in configs.items():
+            for path, test_group in paths.items():
+                first_test = True
+                possible_regression = True
+                fixed_regression = True
+                status_changed = False
+                for t in test_group:
+                    print(t["status"])
+                    if first_test:
+                        if t["status"] == "PASS":
+                            possible_regression = False
+                        elif t["status"] == "FAIL":
+                            fixed_regression = False
+                        else:
+                            possible_regression = False
+                            fixed_regression = False
+                        first_test = False
+                    else:
+                        if possible_regression:
+                            if t["status"] == "FAIL" and not status_changed:
+                                continue
+                            elif t["status"] == "FAIL" and status_changed:
+                                possible_regression = False
+                            elif t["status"] == "PASS":
+                                status_changed = True
+                            elif t["status"] != "PASS" and t["status"] != "FAIL":
+                                possible_regression = False
 
-        for path, test_group in paths.items():
-            unique_statuses = {t["status"] for t in test_group}
-            if len(unique_statuses) == 1:
-                continue
+                        if fixed_regression:
+                            if t["status"] == "PASS" and not status_changed:
+                                continue
+                            elif t["status"] == "PASS" and status_changed:
+                                fixed_regression = False
+                            elif t["status"] == "FAIL":
+                                status_changed = True
+                            elif t["status"] != "PASS" and t["status"] != "FAIL":
+                                fixed_regression = False
 
-            if not printed_platform:
-                buffer.write(f"\nHardware: {platform}\n")
-                printed_platform = True
 
-            has_changes = True
+                if possible_regression:
+                    new_issues[platform][config_name][t["path"]] = test_group
+                elif fixed_regression:
+                    fixed_issues[platform][config_name][t["path"]] = test_group
+                else:
+                    unstable_tests[platform][config_name][t["path"]] = test_group
 
-            status_line = []
-            for t in test_group:
-                if t["status"] == "PASS":
-                    status_line.append("✅ ")
-                elif t["status"] == "FAIL":
-                    status_line.append("❌ ")
-                else:  # Inconclusive or other statuses
-                    status_line.append("⚠️ ")
-
-            buffer.write(f"{' '.join(status_line)} {path}\n")
-
+    buffer.write(f"\n### POSSIBLE REGRESSIONS\n")
+    has_changes = add_to_test_results_buffer(buffer, new_issues)
     if not has_changes:
-        buffer.write(f"\nNo test status changes observed.\n")
-    else:
-        buffer.write(f"\n----\nShowing history for each test. Leftmost is newer.\n")
-        buffer.write(f"Legend: ✅ PASS   ❌ FAIL   ⚠️ INCONCLUSIVE\n")
+        buffer.write(f"\nNo possible regressions observed.\n")
+
+    buffer.write(f"\n### FIXED REGRESSIONS\n")
+    has_changes = add_to_test_results_buffer(buffer, fixed_issues)
+    if not has_changes:
+        buffer.write(f"\nNo fixed regressions observed.\n")
+
+    buffer.write(f"\n### UNSTABLE TESTS\n")
+    has_changes = add_to_test_results_buffer(buffer, unstable_tests)
+    if not has_changes:
+        buffer.write(f"\nNo unstable tests observed.\n")
+
+
+    buffer.write(f"\n----\nShowing history for each test. Leftmost is newer.\n")
+    buffer.write(f"Legend: ✅ PASS   ❌ FAIL   ⚠️ INCONCLUSIVE\n")
 
     report = {}
-    report["content"] =  buffer.getvalue()
+    report["content"] = buffer.getvalue()
     buffer.close()
 
     now = datetime.now(timezone.utc)
-    report["title"] = f"[STATUS CHANGES] {tree_name}/{branch} - {now.strftime("%Y-%m-%d %H:%M %Z")}"
+    report["title"] = f"[STATUS CHANGES] {tree_name}/{branch} - {now.strftime('%Y-%m-%d %H:%M %Z')}"
 
     print(report["content"])
     send_email_report(service, report, email_args)

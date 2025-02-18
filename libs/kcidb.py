@@ -401,6 +401,7 @@ def kcidb_tests_results(conn, origin, giturl, branch):
                     t.environment_misc->>'platform' AS platform,
                     b.architecture,
                     b.compiler,
+                    b.config_name,
                     c.git_commit_hash,
                     ROW_NUMBER() OVER (
                         PARTITION BY t.path
