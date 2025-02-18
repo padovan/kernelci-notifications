@@ -398,8 +398,8 @@ def main():
     issue_report_parser = subparsers.add_parser("issue_report", help="Run the issue_report function")
     issue_report_parser.add_argument("--id", type=str,
         help="Id of the issue in the Dashboard/KCIDB")
-    issue_report_parser.add_argument("--send-all", action="store_true",
-        help="Automatically send issue reports for supported types")
+    issue_report_parser.add_argument("--all", action="store_true",
+        help="Create reports for all issues not sent or not ignored")
     issue_report_parser.add_argument("--update-storage", "-u", action="store_true",
         help="Update json storage as we manipulate and report issues")
     issue_report_parser.add_argument("--ignore", type=str,
@@ -428,7 +428,7 @@ def main():
         generate_issues_summary(dbconn, service, origin, email_args)
     elif args.command == "issue_report":
         email_args.update = args.update_storage
-        if args.send_all:
+        if args.all:
             create_and_send_issue_reports(service, dbconn, email_args)
             return
         elif args.ignore:
