@@ -177,6 +177,17 @@ def generate_issues_summary(dbconn, service, origin, email_args):
     send_email_report(service, report, email_args)
 
 
+def ask_ignore_issue():
+    while True:
+        choice = input(">> Do you want ignore this issue? (y/n): ").strip().lower()
+        if choice in ["y", "yes"]:
+            return True
+        elif choice in ["n", "no"]:
+            return False
+        else:
+            print("Please enter 'y' or 'n'.")
+
+
 def generate_build_issue_report(issue, incidents):
     template = setup_jinja_template('issue_build.txt.j2')
     report= {}
@@ -195,12 +206,22 @@ def generate_boot_issue_report(issue, incidents):
     return report
 
 
-def generate_issue_report(service, conn, issue_id, email_args):
+def generate_issue_report(service, conn, issue_id, email_args, ask_ignore=False):
     result = kcidb_issue_details(conn, issue_id)
     if not result:
         print("issue not found!")
         sys.exit(-1)
     issue = result[0]
+
+    print("=====================")
+    print(f"# {issue["tree_name"]}/{issue["git_repository_branch"]} - {issue["_timestamp"]}")
+    print(f"  comment: {issue["comment"]}")
+    print(f"  dashboard: https://d.kernelci.org/issue/{issue["id"]}")
+
+    if ask_ignore and ask_ignore_issue():
+        mark_issue_as_ignore(issue["id"])
+        return
+
     if issue["build_id"]:
         incidents = kcidb_build_incidents(conn, issue_id)
         report = generate_build_issue_report(issue, incidents)
@@ -376,7 +397,8 @@ def create_and_send_issue_reports(service, conn, email_args):
     for issue_id, details in unsent_issues.items():
         if details["type"] != "build":
             continue
-        generate_issue_report(service, conn, issue_id, email_args)
+
+        generate_issue_report(service, conn, issue_id, email_args, ask_ignore=True)
 
 
 def main():
