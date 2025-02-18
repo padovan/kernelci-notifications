@@ -381,14 +381,14 @@ def kcidb_last_test_without_issue_koike(conn, issue, incident):
     return kcidb_execute_query(conn, query, params)
 
 
-def kcidb_tests_results(conn, origin, giturl, branch):
+def kcidb_tests_results(conn, origin, giturl, branch, path):
     """Fetches build incidents of a given issue."""
 
     params = {
             "origin": origin,
             "giturl": giturl,
             "branch": branch,
-            "path": "%",
+            "path": path,
             "interval": "25 days"
             }
 

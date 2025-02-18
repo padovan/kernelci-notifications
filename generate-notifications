@@ -262,9 +262,10 @@ def add_to_test_results_buffer(buffer, grouped):
 
     return has_changes
 
-def evaluate_test_results(service, conn, origin, giturl, branch, email_args):
+
+def evaluate_test_results(service, conn, origin, giturl, branch, path, email_args):
     buffer = StringIO()
-    tests = kcidb_tests_results(conn, origin, giturl, branch)
+    tests = kcidb_tests_results(conn, origin, giturl, branch, path)
     tree_name = kcidb_tree_name(conn, origin, giturl)
     buffer.write(f"Test results changes {tree_name}/{branch} (origin: {origin})\n\n")
 
@@ -393,6 +394,8 @@ def main():
         help="git tree url as in the the KernelCI Dashboard")
     tests_parser.add_argument("--branch", type=str,
         help="git tree name as in the the KernelCI Dashboard")
+    tests_parser.add_argument("--path", type=str,
+        help="test path in SQL 'regex' format")
 
     args = parser.parse_args()
 
@@ -415,7 +418,7 @@ def main():
         else:
             generate_issue_report(service, dbconn, args.id, email_args)
     elif args.command == "tests":
-            evaluate_test_results(service, dbconn, origin, args.giturl, args.branch, email_args)
+            evaluate_test_results(service, dbconn, origin, args.giturl, args.branch, args.path, email_args)
             return
 
 
