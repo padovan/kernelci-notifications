@@ -215,14 +215,8 @@ def generate_issue_report(service, conn, issue_id, email_args):
             incident["last_pass_commit"] = last_test[0]["git_commit_hash"]
             incident["last_pass_id"] = last_test[0]["id"]
         report = generate_boot_issue_report(issue, incidents)
-
-    cc = get_recipient_list(issue["tree_name"])
-    if email_args.cc:
-        email_args.cc = ', '.join([email_args.cc, cc])
-    else:
-        email_args.cc = cc
-
-    msg_id = send_email_report(service, report, email_args)
+    recipients = get_recipient_list(issue["tree_name"])
+    msg_id = send_email_report(service, report, recipients, email_args)
 
     if msg_id and email_args.update:
         mark_issue_as_sent(issue_id, msg_id)
@@ -263,7 +257,7 @@ def add_to_test_results_buffer(buffer, grouped):
     return has_changes
 
 
-def evaluate_test_results(service, conn, origin, giturl, branch, path, email_args):
+def evaluate_test_results(service, conn, origin, giturl, branch, path, email_args, recipients=None):
     buffer = StringIO()
     tests = kcidb_tests_results(conn, origin, giturl, branch, path)
     tree_name = kcidb_tree_name(conn, origin, giturl)
@@ -342,8 +336,14 @@ def evaluate_test_results(service, conn, origin, giturl, branch, path, email_arg
         buffer.write(f"\nNo unstable tests observed.\n")
 
 
-    buffer.write(f"\n---\nShowing history for each test.\n")
+    buffer.write(f"\n---\nDisplay history for each test.\n")
+    buffer.write(f"Sent every day if there were changes in the past 24 hours.\n")
     buffer.write(f"Legend: ✅ PASS   ❌ FAIL   ⚠️ INCONCLUSIVE\n")
+
+    buffer.write(f"\nThis is an experimental report format. Please send feedback in!\n")
+    buffer.write(f"Talk to us at kernelci@lists.linux.dev\n")
+
+    buffer.write(f"Made with love by the KernelCI team - https://kernelci.org")
 
     report = {}
     report["content"] = buffer.getvalue()
@@ -353,7 +353,22 @@ def evaluate_test_results(service, conn, origin, giturl, branch, path, email_arg
     report["title"] = f"[STATUS CHANGES] {tree_name}/{branch} - {now.strftime('%Y-%m-%d %H:%M %Z')}"
 
     print(report["content"])
-    send_email_report(service, report, email_args)
+    send_email_report(service, report, recipients, email_args)
+
+
+def run_test_status_changes(service, conn, origin, path, email_args):
+    data = read_yaml_file('data/test-status.yaml')
+    for tree in data['trees'].values():
+        if not kcidb_tree_checkout_last_24h(conn, origin, tree["giturl"]):
+            continue
+
+        path = tree["path"] if "path" in tree else '%'
+        if "recipients" in tree:
+            recipients = ', '.join(tree["recipients"])
+        else:
+            recipients = None
+
+        evaluate_test_results(service, conn, origin, tree["giturl"], tree["branch"], path, email_args, recipients)
 
 
 def create_and_send_issue_reports(service, conn, email_args):
@@ -374,6 +389,7 @@ def main():
     parser.add_argument("--to", type=str, help="Recipient To: of the email")
     parser.add_argument("--cc", type=str, help="Recipient CC: of the email")
     parser.add_argument("--yes", action="store_true", help="Send email without asking for confirmation")
+    parser.add_argument("--ignore-recipients", action="store_true", help="Ignore recipients.yaml file")
 
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available subcommands")
 
@@ -396,6 +412,8 @@ def main():
         help="git tree name as in the the KernelCI Dashboard")
     tests_parser.add_argument("--path", type=str,
         help="test path in SQL 'regex' format")
+    tests_parser.add_argument("--run", action="store_true",
+        help="Run for for trees configured at 'data/test-status.yaml'")
 
     args = parser.parse_args()
 
@@ -404,6 +422,7 @@ def main():
     email_args.yes = args.yes
     email_args.to = args.to
     email_args.cc = args.cc
+    email_args.ignore_recipients = args.ignore_recipients
 
     if args.command == "issues":
         generate_issues_summary(dbconn, service, origin, email_args)
@@ -418,7 +437,10 @@ def main():
         else:
             generate_issue_report(service, dbconn, args.id, email_args)
     elif args.command == "tests":
-            evaluate_test_results(service, dbconn, origin, args.giturl, args.branch, args.path, email_args)
+            if args.run:
+                run_test_status_changes(service, dbconn, origin, args.path, email_args)
+            else:
+                evaluate_test_results(service, dbconn, origin, args.giturl, args.branch, args.path, email_args)
             return
 
 

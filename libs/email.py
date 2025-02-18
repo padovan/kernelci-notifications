@@ -90,7 +90,7 @@ def ask_confirmation():
             print("Please enter 'y' or 'n'.")
 
 
-def send_email_report(service, report, email_args):
+def send_email_report(service, report, recipients, email_args):
     sender_email = "KernelCI bot <bot@kernelci.org>"
     subject = report["title"]
     message_text = report["content"]
@@ -101,12 +101,21 @@ def send_email_report(service, report, email_args):
         print(message_text)
         return None
 
+    print(email_args.ignore_recipients)
+    if not email_args.ignore_recipients:
+        cc = recipients
+    else:
+        cc = ""
+
+    if email_args.cc:
+        cc = ', '.join([email_args.cc, cc])
+
     if not email_args.yes:
         print("===================")
         print(f"Subject: {subject}")
         print(f"To: {email_args.to}")
-        if email_args.cc:
-            print(f"Cc: {email_args.cc}")
+        if cc:
+            print(f"Cc: {cc}")
         print(message_text)
         if not ask_confirmation():
             print("Email sending aborted.")
@@ -115,5 +124,5 @@ def send_email_report(service, report, email_args):
 
     print(f"sending {subject}.")
 
-    email = create_email(sender_email, email_args.to, subject, message_text, email_args.cc)
+    email = create_email(sender_email, email_args.to, subject, message_text, cc)
     return gmail_send_email(service, 'me', email)

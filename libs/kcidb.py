@@ -445,6 +445,25 @@ def kcidb_tree_name(conn, origin, giturl):
     return result[0]["tree_name"] if result else None
 
 
+def kcidb_tree_checkout_last_24h(conn, origin, giturl):
+    params = {
+        "giturl": giturl,
+        "origin": origin,
+        "interval": "1 day"
+    }
+
+    query = """
+        SELECT COUNT(id)
+        FROM checkouts
+        WHERE git_repository_url = %(giturl)s
+        AND origin = %(origin)s
+        AND _timestamp >= NOW() - INTERVAL %(interval)s
+    """
+
+    result = kcidb_execute_query(conn, query, params)
+    return True if result[0]['count'] > 1 else False
+
+
 def kcidb_connect():
     """Connect to PostgreSQL using the .pg_service.conf configuration."""
     try:
