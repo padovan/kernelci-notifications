@@ -395,6 +395,7 @@ def kcidb_tests_results(conn, origin, giturl, branch):
     query = """
             WITH ranked_tests AS (
                 SELECT
+                    t.id,
                     t.path,
                     t.status,
                     t.start_time,

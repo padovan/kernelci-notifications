@@ -237,11 +237,12 @@ def add_to_test_results_buffer(buffer, grouped):
                     printed_platform = True
 
                 buffer.write(f"- {path} ({config_name})\n")
+                buffer.write(f"  last run: https://d.kernelci.org/test/{test_group[0]["id"]}\n")
 
                 has_changes = True
-                status_line = []
+                status_line = ["➜ "]
 
-                for t in test_group:
+                for t in reversed(test_group):
                     if t["status"] == "PASS":
                         status_line.append("✅ ")
                     elif t["status"] == "FAIL":
@@ -250,6 +251,7 @@ def add_to_test_results_buffer(buffer, grouped):
                         status_line.append("⚠️ ")
 
                 buffer.write(f"  {' '.join(status_line)}\n")
+                buffer.write(f"\n")
 
     return has_changes
 
@@ -278,7 +280,6 @@ def evaluate_test_results(service, conn, origin, giturl, branch, email_args):
                 fixed_regression = True
                 status_changed = False
                 for t in test_group:
-                    print(t["status"])
                     if first_test:
                         if t["status"] == "PASS":
                             possible_regression = False
@@ -333,7 +334,7 @@ def evaluate_test_results(service, conn, origin, giturl, branch, email_args):
         buffer.write(f"\nNo unstable tests observed.\n")
 
 
-    buffer.write(f"\n----\nShowing history for each test. Leftmost is newer.\n")
+    buffer.write(f"\n---\nShowing history for each test.\n")
     buffer.write(f"Legend: ✅ PASS   ❌ FAIL   ⚠️ INCONCLUSIVE\n")
 
     report = {}
