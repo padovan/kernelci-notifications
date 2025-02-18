@@ -63,7 +63,7 @@ def gmail_send_email(service, user_id, email):
         print(f"An error occurred: {error}")
 
 
-def create_email(sender, to, subject, message_text, cc):
+def create_email(sender, to, subject, message_text, cc, reply_to):
     message = EmailMessage()
     message.set_content(message_text)
     # Set email headers
@@ -73,6 +73,8 @@ def create_email(sender, to, subject, message_text, cc):
         message['cc'] = cc
     message['from'] = sender
     message['subject'] = subject
+    if reply_to:
+        message['Reply-To'] = reply_to
 
     # Encode the message as base64
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
@@ -124,5 +126,5 @@ def send_email_report(service, report, recipients, email_args):
 
     print(f"sending {subject}.")
 
-    email = create_email(sender_email, email_args.to, subject, message_text, cc)
+    email = create_email(sender_email, email_args.to, subject, message_text, cc, email_args.reply_to)
     return gmail_send_email(service, 'me', email)

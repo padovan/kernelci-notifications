@@ -394,6 +394,7 @@ def run_test_status_changes(service, conn, origin, path, email_args):
 
 def create_and_send_issue_reports(service, conn, email_args):
     unsent_issues = get_unsent_issues()
+    email_args.reply_to = "kernelci@lists.linux.dev"
     for issue_id, details in unsent_issues.items():
         if details["type"] != "build":
             continue
@@ -445,6 +446,7 @@ def main():
     email_args.to = args.to
     email_args.cc = args.cc
     email_args.ignore_recipients = args.ignore_recipients
+    email_args.reply_to = None
 
     if args.command == "issues":
         generate_issues_summary(dbconn, service, origin, email_args)
