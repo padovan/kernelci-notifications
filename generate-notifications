@@ -111,6 +111,20 @@ def mark_issue_as_ignore(issue_id):
             json.dump(data, f, indent=4, ensure_ascii=False)
 
 
+def read_yaml_file(filepath):
+    """Reads a YAML file and returns the data as a dictionary."""
+    try:
+        with open(filepath, 'r') as file:
+            data = yaml.safe_load(file)  # Use safe_load to avoid potential security issues
+            return data
+    except FileNotFoundError:
+        print(f"Error: File not found at {filepath}")
+        return None
+    except yaml.YAMLError as exc:
+        print(f"Error parsing YAML: {exc}")
+        return None
+
+
 def get_recipient_list(tree_name):
     """
     Read recipients from a YAML file for a given tree name.
@@ -123,8 +137,7 @@ def get_recipient_list(tree_name):
              Returns None if tree is not found
     """
     try:
-        with open('data/recipients.yaml', 'r') as file:
-            data = yaml.safe_load(file)
+        data = read_yaml_file('data/recipients.yaml')
 
         if tree_name in data['trees']:
             recipients = data['trees'][tree_name]
@@ -132,12 +145,6 @@ def get_recipient_list(tree_name):
 
         return None
 
-    except FileNotFoundError:
-        print("Error: data/recipients.yaml file not found")
-        return None
-    except yaml.YAMLError as e:
-        print(f"Error parsing YAML file: {e}")
-        return None
     except (KeyError, TypeError) as e:
         print(f"Error accessing tree data: {e}")
         return None
