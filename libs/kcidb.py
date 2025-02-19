@@ -468,23 +468,6 @@ def kcidb_tests_results(conn, origin, giturl, branch, hash, path):
     return kcidb_execute_query(conn, query, params)
 
 
-def kcidb_tree_name(conn, origin, giturl):
-    params = {
-        "giturl": giturl,
-        "origin": origin
-    }
-
-    query = """
-        SELECT DISTINCT tree_name
-        FROM checkouts
-        WHERE git_repository_url = %(giturl)s
-        AND origin = %(origin)s
-    """
-
-    result = kcidb_execute_query(conn, query, params)
-    return result[0]["tree_name"] if result else None
-
-
 def kcidb_connect():
     """Connect to PostgreSQL using the .pg_service.conf configuration."""
     try:

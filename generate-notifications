@@ -283,10 +283,9 @@ def evaluate_test_results(service, conn, checkout, path, email_args, recipients=
     origin = checkout["origin"]
     giturl = checkout["git_repository_url"]
     branch = checkout["git_repository_branch"]
+    tree_name = checkout["tree_name"]
     commit_hash = checkout["git_commit_hash"]
     tests = kcidb_tests_results(conn, origin, giturl, branch, commit_hash, path)
-    tree_name = kcidb_tree_name(conn, origin, giturl)
-    buffer.write(f"Test results changes {tree_name}/{branch} (origin: {origin})\n\n")
 
     # Group by platform, then by config_name, then by path
     grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
@@ -345,6 +344,7 @@ def evaluate_test_results(service, conn, checkout, path, email_args, recipients=
                 else:
                     unstable_tests[platform][config_name][t["path"]] = test_group
 
+    buffer.write(f"Test results changes {tree_name}/{branch} (origin: {origin})\n\n")
     buffer.write(f"\n### POSSIBLE REGRESSIONS\n")
     has_changes = add_to_test_results_buffer(buffer, new_issues)
     if not has_changes:
