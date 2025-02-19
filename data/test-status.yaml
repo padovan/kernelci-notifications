@@ -2,7 +2,6 @@ trees:
   mainline:
     giturl: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
     branch: master
-    path: 'kselftest%'
     recipients:
       - laura.nao@collabora.com
       - shreeya.patel@collabora.com
@@ -10,7 +9,6 @@ trees:
   next:
     giturl: https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git
     branch: master
-    path: 'kselftest%'
     recipients:
       - broonie@kernel.org
   broonie-regulator-for-linus:
