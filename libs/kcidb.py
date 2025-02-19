@@ -79,6 +79,7 @@ def kcidb_new_issues(conn, origin):
 
         first_incidents AS (
            SELECT
+               inc._timestamp,
                inc.issue_id,
                inc.issue_version,
                inc.test_id,
@@ -98,6 +99,7 @@ def kcidb_new_issues(conn, origin):
            UNION
 
            SELECT
+               inc._timestamp,
                inc.issue_id,
                inc.issue_version,
                inc.test_id,
@@ -118,7 +120,7 @@ def kcidb_new_issues(conn, origin):
        )
 
         SELECT
-            n._timestamp,
+            fi._timestamp,
             n.id,
             n.version,
             n.comment,
@@ -135,7 +137,7 @@ def kcidb_new_issues(conn, origin):
         LEFT JOIN first_incidents fi ON n.id = fi.issue_id AND fi.incident_rn = 1
         LEFT JOIN incidents inc ON n.id = inc.issue_id
         GROUP BY  -- Important: Group by all selected columns *except* the count
-            n._timestamp,
+            fi._timestamp,
             n.id,
             n.version,
             n.comment,
@@ -147,7 +149,7 @@ def kcidb_new_issues(conn, origin):
             fi.git_repository_branch,
             fi.git_commit_hash,
             fi.git_commit_name
-        ORDER BY n._timestamp DESC;
+        ORDER BY fi._timestamp DESC;
         """
 
     return kcidb_execute_query(conn, query, params)
