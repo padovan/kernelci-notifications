@@ -92,7 +92,7 @@ def ask_confirmation():
             print("Please enter 'y' or 'n'.")
 
 
-def send_email_report(service, report, recipients, email_args):
+def send_email_report(service, report, email_args, recipients=None):
     sender_email = "KernelCI bot <bot@kernelci.org>"
     subject = report["title"]
     message_text = report["content"]
@@ -104,7 +104,7 @@ def send_email_report(service, report, recipients, email_args):
         return None
 
     print(email_args.ignore_recipients)
-    if not email_args.ignore_recipients:
+    if recipients and not email_args.ignore_recipients:
         cc = recipients
     else:
         cc = ""

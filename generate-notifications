@@ -237,7 +237,7 @@ def generate_issue_report(service, conn, issue_id, email_args, ask_ignore=False)
             incident["last_pass_id"] = last_test[0]["id"]
         report = generate_boot_issue_report(issue, incidents)
     recipients = get_recipient_list(issue["tree_name"])
-    msg_id = send_email_report(service, report, recipients, email_args)
+    msg_id = send_email_report(service, report, email_args, recipients)
 
     if msg_id and email_args.update:
         mark_issue_as_sent(issue_id, msg_id)
@@ -374,7 +374,7 @@ def evaluate_test_results(service, conn, origin, giturl, branch, path, email_arg
     report["title"] = f"[STATUS CHANGES] {tree_name}/{branch} - {now.strftime('%Y-%m-%d %H:%M %Z')}"
 
     print(report["content"])
-    send_email_report(service, report, recipients, email_args)
+    send_email_report(service, report, email_args, recipients)
 
 
 def run_test_status_changes(service, conn, origin, path, email_args):
