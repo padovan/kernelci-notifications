@@ -278,9 +278,13 @@ def add_to_test_results_buffer(buffer, grouped):
     return has_changes
 
 
-def evaluate_test_results(service, conn, origin, giturl, branch, hash, path, email_args, recipients=None):
+def evaluate_test_results(service, conn, checkout, path, email_args, recipients=None):
     buffer = StringIO()
-    tests = kcidb_tests_results(conn, origin, giturl, branch, hash, path)
+    origin = checkout["origin"]
+    giturl = checkout["git_repository_url"]
+    branch = checkout["git_repository_branch"]
+    commit_hash = checkout["git_commit_hash"]
+    tests = kcidb_tests_results(conn, origin, giturl, branch, commit_hash, path)
     tree_name = kcidb_tree_name(conn, origin, giturl)
     buffer.write(f"Test results changes {tree_name}/{branch} (origin: {origin})\n\n")
 
@@ -390,8 +394,7 @@ def run_test_status_changes(service, conn, origin, path, email_args):
         else:
             recipients = None
 
-        evaluate_test_results(service, conn, origin, tree["giturl"], tree["branch"],
-                              checkout["git_commit_hash"], path, email_args, recipients)
+        evaluate_test_results(service, conn, checkout, path, email_args, recipients)
 
 
 def create_and_send_issue_reports(service, conn, email_args):
