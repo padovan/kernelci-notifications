@@ -278,9 +278,9 @@ def add_to_test_results_buffer(buffer, grouped):
     return has_changes
 
 
-def evaluate_test_results(service, conn, origin, giturl, branch, path, email_args, recipients=None):
+def evaluate_test_results(service, conn, origin, giturl, branch, hash, path, email_args, recipients=None):
     buffer = StringIO()
-    tests = kcidb_tests_results(conn, origin, giturl, branch, path)
+    tests = kcidb_tests_results(conn, origin, giturl, branch, hash, path)
     tree_name = kcidb_tree_name(conn, origin, giturl)
     buffer.write(f"Test results changes {tree_name}/{branch} (origin: {origin})\n\n")
 
@@ -380,7 +380,8 @@ def evaluate_test_results(service, conn, origin, giturl, branch, path, email_arg
 def run_test_status_changes(service, conn, origin, path, email_args):
     data = read_yaml_file('data/test-status.yaml')
     for tree in data['trees'].values():
-        if not kcidb_tree_checkout_last_24h(conn, origin, tree["giturl"]):
+        checkout = kcidb_latest_checkout_results(conn, origin, tree["giturl"], tree["branch"])
+        if not checkout:
             continue
 
         path = tree["path"] if "path" in tree else '%'
@@ -389,7 +390,8 @@ def run_test_status_changes(service, conn, origin, path, email_args):
         else:
             recipients = None
 
-        evaluate_test_results(service, conn, origin, tree["giturl"], tree["branch"], path, email_args, recipients)
+        evaluate_test_results(service, conn, origin, tree["giturl"], tree["branch"],
+                              checkout["git_commit_hash"], path, email_args, recipients)
 
 
 def create_and_send_issue_reports(service, conn, email_args):

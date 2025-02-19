@@ -383,19 +383,56 @@ def kcidb_last_test_without_issue_koike(conn, issue, incident):
     return kcidb_execute_query(conn, query, params)
 
 
-def kcidb_tests_results(conn, origin, giturl, branch, path):
+def kcidb_latest_checkout_results(conn, origin, giturl, branch):
+    """
+    Fetches checkouts between in the past 5 to 29 hours.
+    As KCIDB doesn't have an end of testing signal, we have
+    to wait sometime before we can send the report.
+    """
+
+    params = {
+            "origin": origin,
+            "giturl": giturl,
+            "branch": branch,
+            "interval_min": "5 hours",
+            "interval_max": "29 hours"
+            }
+
+    query = """
+            SELECT *
+                FROM checkouts c
+                WHERE c.origin = %(origin)s
+                AND c.git_repository_url = %(giturl)s
+                AND c.git_repository_branch = %(branch)s
+                AND c._timestamp >= NOW() - INTERVAL %(interval_max)s
+                AND c._timestamp <= NOW() - INTERVAL %(interval_min)s
+                ORDER BY c._timestamp DESC
+                LIMIT 1
+        """
+    result = kcidb_execute_query(conn, query, params)
+    return result[0] if result else None
+
+
+def kcidb_tests_results(conn, origin, giturl, branch, hash, path):
     """Fetches build incidents of a given issue."""
 
     params = {
             "origin": origin,
             "giturl": giturl,
             "branch": branch,
+            "hash": hash,
             "path": path,
             "interval": "25 days"
             }
 
     query = """
-            WITH ranked_tests AS (
+            WITH latest_checkout AS (
+                SELECT
+                    _timestamp
+                FROM checkouts
+                WHERE git_commit_hash = %(hash)s
+            ),
+            ranked_tests AS (
                 SELECT
                     t.id,
                     t.path,
@@ -413,6 +450,7 @@ def kcidb_tests_results(conn, origin, giturl, branch, path):
                 FROM tests t
                 JOIN builds b ON t.build_id = b.id
                 JOIN checkouts c ON b.checkout_id = c.id
+                JOIN latest_checkout lc on lc._timestamp > c._timestamp
                 WHERE t.origin = %(origin)s
                     AND c.git_repository_url = %(giturl)s
                     AND c.git_repository_branch = %(branch)s
@@ -445,25 +483,6 @@ def kcidb_tree_name(conn, origin, giturl):
 
     result = kcidb_execute_query(conn, query, params)
     return result[0]["tree_name"] if result else None
-
-
-def kcidb_tree_checkout_last_24h(conn, origin, giturl):
-    params = {
-        "giturl": giturl,
-        "origin": origin,
-        "interval": "1 day"
-    }
-
-    query = """
-        SELECT COUNT(id)
-        FROM checkouts
-        WHERE git_repository_url = %(giturl)s
-        AND origin = %(origin)s
-        AND _timestamp >= NOW() - INTERVAL %(interval)s
-    """
-
-    result = kcidb_execute_query(conn, query, params)
-    return True if result[0]['count'] > 1 else False
 
 
 def kcidb_connect():
