@@ -381,7 +381,7 @@ def evaluate_test_results(service, conn, checkout, path, email_args, recipients=
     send_email_report(service, report, email_args, recipients)
 
 
-def run_test_status_changes(service, conn, origin, path, email_args):
+def run_checkout_summary(service, conn, origin, email_args):
     data = read_yaml_file('data/test-status.yaml')
     for tree in data['trees'].values():
         checkout = kcidb_latest_checkout_results(conn, origin, tree["giturl"], tree["branch"])
@@ -433,16 +433,7 @@ def main():
     issue_report_parser.add_argument("--ignore", type=str,
         help="Update json storage as we manipulate and report issues")
 
-    tests_parser = subparsers.add_parser("tests", help="Check test status changes")
-    tests_parser.add_argument("--giturl", type=str,
-        help="git tree url as in the the KernelCI Dashboard")
-    tests_parser.add_argument("--branch", type=str,
-        help="git tree name as in the the KernelCI Dashboard")
-    tests_parser.add_argument("--path", type=str,
-        help="test path in SQL 'regex' format")
-    tests_parser.add_argument("--run", action="store_true",
-        help="Run for for trees configured at 'data/test-status.yaml'")
-
+    summary_parser = subparsers.add_parser("summary", help="Run summary reports for checkouts")
     args = parser.parse_args()
 
     email_args = SimpleNamespace()
@@ -465,12 +456,8 @@ def main():
             return
         else:
             generate_issue_report(service, dbconn, args.id, email_args)
-    elif args.command == "tests":
-            if args.run:
-                run_test_status_changes(service, dbconn, origin, args.path, email_args)
-            else:
-                evaluate_test_results(service, dbconn, origin, args.giturl, args.branch, args.path, email_args)
-            return
+    elif args.command == "summary":
+        run_checkout_summary(service, dbconn, origin, email_args)
 
 
 if __name__ == "__main__":
