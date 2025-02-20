@@ -15,3 +15,9 @@ trees:
   chromiumos:
     - laura.nao@collabora.com
     - shreeya.patel@collabora.com
+  broonie-sound:
+    - broonie@kernel.org
+  broonie-spi:
+    - broonie@kernel.org
+  broonie-regulator:
+    - broonie@kernel.org

@@ -263,7 +263,7 @@ def add_to_test_results_buffer(buffer, grouped):
                 buffer.write(f"  last run: https://d.kernelci.org/test/{test_group[0]["id"]}\n")
 
                 has_changes = True
-                status_line = ["➜ "]
+                status_line = ["history: ➜ "]
 
                 for t in reversed(test_group):
                     if t["status"] == "PASS":
