@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CODE_DIR='/home/gus/p/ecosystem/kernelci-notification-deploy'
+CODE_DIR='/home/gus/p/ecosystem/kernelci-notifications-deploy'
 
 cd $CODE_DIR
 source .venv/bin/activate
