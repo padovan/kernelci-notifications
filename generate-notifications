@@ -20,6 +20,57 @@ from libs.kcidb import *
 
 STORAGE_FILE = "found_issues.json"
 
+KERNELCI_RESULTS = "kernelci-results@groups.io"
+KERNELCI_REPLYTO = "kernelci@lists.linux.dev"
+REGRESSIONS_LIST =  "regressions@lists.linux.dev"
+
+
+def send_email_report(service, report, email_args, tree_name=None):
+    sender_email = "KernelCI bot <bot@kernelci.org>"
+    subject = report["title"]
+    message_text = report["content"]
+
+    if not email_args.send:
+        print("\n==============================================")
+        print(f"new report:\n> {subject}")
+        print(message_text)
+        return None
+
+    cc = ""
+    reply_to = None
+    if email_args.add_mailing_lists:
+        to = KERNELCI_RESULTS
+        reply_to = KERNELCI_REPLYTO
+    else:
+        to = email_args.to
+
+    if email_args.tree_name and not email_args.ignore_recipients:
+        recipients = get_recipient_list(email_args.tree_name)
+        cc = ', '.join([recipients, cc]) if cc else recipients
+
+    if email_args.cc:
+        cc = ', '.join([email_args.cc, cc]) if cc else email_args.cc
+
+    if email_args.add_mailing_lists and email_args.regression_report and (email_args.tree_name == "mainline" or email_args.tree_name == "next"):
+        cc = ', '.join([REGRESSIONS_LIST, cc]) if cc else REGRESSIONS_LIST
+
+    if not email_args.yes:
+        print("===================")
+        print(f"Subject: {subject}")
+        print(f"To: {to}")
+        if cc:
+            print(f"Cc: {cc}")
+        print(message_text)
+        if not ask_confirmation():
+            print("Email sending aborted.")
+            return None
+
+
+    print(f"sending {subject}.")
+
+    email = create_email(sender_email, to, subject, message_text, cc, reply_to)
+    return gmail_send_email(service, 'me', email)
+
 
 def setup_jinja_template(file):
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(os.path.join(sys.path[0], 'templates')))
@@ -237,8 +288,9 @@ def generate_issue_report(service, conn, issue_id, email_args, ask_ignore=False)
             incident["last_pass_commit"] = last_test[0]["git_commit_hash"]
             incident["last_pass_id"] = last_test[0]["id"]
         report = generate_boot_issue_report(issue, incidents)
-    recipients = get_recipient_list(issue["tree_name"])
-    msg_id = send_email_report(service, report, email_args, recipients)
+    email_args.tree_name = issue["tree_name"]
+    email_args.regression_report = True
+    msg_id = send_email_report(service, report, email_args)
 
     if msg_id and email_args.update:
         mark_issue_as_sent(issue_id, msg_id)
@@ -279,7 +331,7 @@ def add_to_test_results_buffer(buffer, grouped):
     return has_changes
 
 
-def evaluate_test_results(service, conn, checkout, path, email_args, recipients=None):
+def evaluate_test_results(service, conn, checkout, path):
     buffer = StringIO()
     origin = checkout["origin"]
     giturl = checkout["git_repository_url"]
@@ -374,12 +426,8 @@ def run_checkout_summary(service, conn, origin, email_args):
 
         checkout["giturl_safe"] = quote_plus(checkout["git_repository_url"])
         path = tree["path"] if "path" in tree else '%'
-        if "recipients" in tree:
-            recipients = ', '.join(tree["recipients"])
-        else:
-            recipients = None
 
-        test_status = evaluate_test_results(service, conn, checkout, path, email_args, recipients)
+        test_status = evaluate_test_results(service, conn, checkout, path)
 
         report= {}
         template = setup_jinja_template('summary.txt.j2')
@@ -387,17 +435,25 @@ def run_checkout_summary(service, conn, origin, email_args):
         report["title"] = f"[STATUS] {checkout["tree_name"]}/{checkout["git_repository_branch"]} - {checkout["git_commit_hash"]}"
 
         print(report["content"])
-        send_email_report(service, report, email_args, recipients)
+        email_args.tree_name = checkout["tree_name"]
+        send_email_report(service, report, email_args)
 
 
 def create_and_send_issue_reports(service, conn, email_args):
     unsent_issues = get_unsent_issues()
-    email_args.reply_to = "kernelci@lists.linux.dev"
     for issue_id, details in unsent_issues.items():
         if details["type"] != "build":
             continue
 
         generate_issue_report(service, conn, issue_id, email_args, ask_ignore=True)
+
+
+def run_fake_report(service, email_args):
+        report = {}
+        report["content"] = "Testing the email sending path..."
+        report["title"] = f"[IGNORE] Test report"
+
+        send_email_report(service, report, email_args)
 
 
 def main():
@@ -409,6 +465,7 @@ def main():
     parser.add_argument("--send", action="store_true", help="Send email report at the end.")
     parser.add_argument("--to", type=str, help="Recipient To: of the email")
     parser.add_argument("--cc", type=str, help="Recipient CC: of the email")
+    parser.add_argument("--add-mailing-lists", action="store_true", help="Add community mailing lists to recipients (See docs).")
     parser.add_argument("--yes", action="store_true", help="Send email without asking for confirmation")
     parser.add_argument("--ignore-recipients", action="store_true", help="Ignore recipients.yaml file")
 
@@ -427,6 +484,10 @@ def main():
         help="Update json storage as we manipulate and report issues")
 
     summary_parser = subparsers.add_parser("summary", help="Run summary reports for checkouts")
+
+    fake_parser = subparsers.add_parser("fake_report", help="Create a fake report for testing the email sending path")
+    fake_parser.add_argument("--tree", type=str, help="Add recipients for the given tree name")
+
     args = parser.parse_args()
 
     email_args = SimpleNamespace()
@@ -435,7 +496,9 @@ def main():
     email_args.to = args.to
     email_args.cc = args.cc
     email_args.ignore_recipients = args.ignore_recipients
-    email_args.reply_to = None
+    email_args.add_mailing_lists = args.add_mailing_lists
+    email_args.tree_name = args.tree
+    email_args.regression_report = False
 
     if args.command == "issues":
         generate_issues_summary(dbconn, service, origin, email_args)
@@ -451,6 +514,8 @@ def main():
             generate_issue_report(service, dbconn, args.id, email_args)
     elif args.command == "summary":
         run_checkout_summary(service, dbconn, origin, email_args)
+    elif args.command == "fake_report":
+        run_fake_report(service, email_args)
 
 
 if __name__ == "__main__":
