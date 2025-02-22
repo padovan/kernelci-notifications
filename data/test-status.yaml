@@ -2,42 +2,27 @@ trees:
   mainline:
     giturl: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
     branch: master
-    recipients:
-      - laura.nao@collabora.com
-      - shreeya.patel@collabora.com
-      - broonie@kernel.org
   next:
     giturl: https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git
     branch: master
-    recipients:
-      - broonie@kernel.org
+  arm64:
+    giturl: https://git.kernel.org/pub/scm/linux/kernel/git/arm64/linux.git
+    branch: for-kernelci
   broonie-regulator-for-linus:
     giturl: https://git.kernel.org/pub/scm/linux/kernel/git/broonie/regulator.git
     branch: for-linus
-    recipients:
-      - broonie@kernel.org
   broonie-regulator-for-next:
     giturl: https://git.kernel.org/pub/scm/linux/kernel/git/broonie/regulator.git
     branch: for-next
-    recipients:
-      - broonie@kernel.org
   broonie-spi-for-linus:
     giturl: https://git.kernel.org/pub/scm/linux/kernel/git/broonie/spi.git
     branch: for-linus
-    recipients:
-      - broonie@kernel.org
   broonie-spi-for-next:
     giturl: https://git.kernel.org/pub/scm/linux/kernel/git/broonie/spi.git
     branch: for-next
-    recipients:
-      - broonie@kernel.org
   broonie-sound-for-linus:
     giturl: https://git.kernel.org/pub/scm/linux/kernel/git/broonie/sound.git
     branch: for-linus
-    recipients:
-      - broonie@kernel.org
   broonie-sound-for-next:
     giturl: https://git.kernel.org/pub/scm/linux/kernel/git/broonie/sound.git
     branch: for-next
-    recipients:
-      - broonie@kernel.org

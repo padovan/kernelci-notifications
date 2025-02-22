@@ -6,10 +6,10 @@ trees:
     - stable@vger.kernel.org
   stable-rc:
     - stable@vger.kernel.org
-  next:
-    - regressions@lists.linux.dev
   mainline:
-    - regressions@lists.linux.dev
+    - laura.nao@collabora.com
+    - shreeya.patel@collabora.com
+    - broonie@kernel.org
   cip:
     - cip-dev@lists.cip-project.org
   chromiumos:
