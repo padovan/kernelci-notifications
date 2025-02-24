@@ -21,3 +21,5 @@ trees:
     - broonie@kernel.org
   broonie-regulator:
     - broonie@kernel.org
+  sashal-next:
+    - sashal@kernel.org
