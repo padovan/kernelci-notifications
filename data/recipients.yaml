@@ -23,3 +23,5 @@ trees:
     - broonie@kernel.org
   sashal-next:
     - sashal@kernel.org
+  mediatek:
+    - angelogioacchino.delregno@collabora.com
